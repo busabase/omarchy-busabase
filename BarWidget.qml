@@ -5,7 +5,7 @@ import "Model.js" as Model
 
 // Bar face of Busabase: the mark, today's "kept" count, and — only when
 // something of yours is queued for review — a small accent dot. When your
-// agents keep something, the count ticks and a "+1" floats off it. No toast:
+// agents keep something, the count flashes "+1" and settles. No toast:
 // work your agents do on their own should be visible, not interrupting.
 BarWidget {
   id: root
@@ -39,15 +39,27 @@ BarWidget {
   function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
 
   readonly property bool showCount: setting("showCount", true) === true
-  readonly property bool countActive: showCount && service.connected && service.keptCount > 0
+  readonly property bool countActive: (showCount && service.connected && service.keptCount > 0) || showingPlus
   readonly property bool pendingActive: service.connected && service.pendingCount > 0
   readonly property bool dimmed: !service.connected
 
-  property int floatAmount: 0
+  // On a fresh keep the count cell shows "+N" in the accent colour for a beat,
+  // then settles on the new total. It stays inside the bar: a 26px bar has no
+  // room for anything to float up and out.
+  property int plusAmount: 0
+  property bool showingPlus: false
+  readonly property string cellText: showingPlus ? "+" + plusAmount : Model.badgeText(service.keptCount)
   function celebrate(n) {
-    floatAmount = n
+    plusAmount = n
+    showingPlus = true
     mark.pulse()
-    floater.restart()
+    pop.restart()
+    settle.restart()
+  }
+  Timer {
+    id: settle
+    interval: 1400
+    onTriggered: root.showingPlus = false
   }
 
   readonly property string tooltip: {
@@ -96,7 +108,7 @@ BarWidget {
       id: countMetrics
       font.family: button.fontFamily
       font.pixelSize: button.fontSize
-      text: Model.badgeText(service.keptCount)
+      text: root.cellText
     }
 
     Row {
@@ -136,7 +148,6 @@ BarWidget {
         anchors.verticalCenter: parent.verticalCenter
         width: root.countActive ? Math.ceil(countMetrics.advanceWidth) + Style.space(5) : 0
         height: countText.implicitHeight
-        clip: false
         visible: width > 0 && !root.vertical
 
         Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
@@ -144,11 +155,15 @@ BarWidget {
         Text {
           id: countText
           anchors.right: parent.right
-          text: Model.badgeText(service.keptCount)
-          color: Qt.darker(button.foreground, 1.15)
+          anchors.verticalCenter: parent.verticalCenter
+          text: root.cellText
+          color: root.showingPlus ? Color.accent : Qt.darker(button.foreground, 1.15)
           font.family: button.fontFamily
           font.pixelSize: button.fontSize
+          font.bold: root.showingPlus
+          transformOrigin: Item.Center
 
+          Behavior on color { ColorAnimation { duration: 260 } }
           Behavior on text {
             SequentialAnimation {
               NumberAnimation { target: countText; property: "opacity"; to: 0; duration: 70; easing.type: Easing.InQuad }
@@ -156,28 +171,12 @@ BarWidget {
               NumberAnimation { target: countText; property: "opacity"; to: 1; duration: 110; easing.type: Easing.OutQuad }
             }
           }
-        }
 
-        // "+1" rises off the count and fades: a score, not an alert.
-        Text {
-          id: plusOne
-          anchors.right: parent.right
-          text: "+" + root.floatAmount
-          color: Color.accent
-          font.family: button.fontFamily
-          font.pixelSize: Math.round(button.fontSize * 0.85)
-          font.bold: true
-          opacity: 0
-          y: 0
-
-          ParallelAnimation {
-            id: floater
-            NumberAnimation { target: plusOne; property: "y"; from: 0; to: -button.height * 0.55; duration: 900; easing.type: Easing.OutCubic }
-            SequentialAnimation {
-              NumberAnimation { target: plusOne; property: "opacity"; from: 0; to: 1; duration: 120 }
-              PauseAnimation { duration: 380 }
-              NumberAnimation { target: plusOne; property: "opacity"; to: 0; duration: 400 }
-            }
+          // A small pop as the "+N" lands: a score, not an alert.
+          SequentialAnimation {
+            id: pop
+            NumberAnimation { target: countText; property: "scale"; from: 0.6; to: 1.25; duration: 160; easing.type: Easing.OutBack }
+            NumberAnimation { target: countText; property: "scale"; to: 1.0; duration: 220; easing.type: Easing.OutCubic }
           }
         }
       }
