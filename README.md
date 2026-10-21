@@ -87,7 +87,7 @@ Your Busabase data and `~/.busabase/.env` are untouched.
 ```bash
 node --test test/model.test.mjs        # pure logic
 omarchy plugin validate .               # manifest and layout
-omarchy-shell busabase status  # live state as JSON (never includes the key)
+omarchy-shell busabase status          # live state as JSON (never includes the key)
 ```
 
 The bundled skill in `skills/busabase` is copied from
