@@ -12,8 +12,8 @@ import "Model.js" as Model
 // Every row is one list so the keyboard walks it top to bottom.
 Panel {
   id: root
-  moduleName: "busabase.busabase"
-  ipcTarget: "busabase.busabase"
+  moduleName: "busabase"
+  ipcTarget: "busabase"
   manageIpc: false
 
   property var anchorItem: null

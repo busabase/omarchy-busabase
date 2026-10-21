@@ -49,7 +49,7 @@ the same `~/.busabase/.env`.
 | `o` | Open Busabase |
 | `Esc` | Close |
 
-Bind it to a key with Omarchy's IPC: `omarchy-shell busabase.busabase toggle`.
+Bind it to a key with Omarchy's IPC: `omarchy-shell busabase toggle`.
 
 ## What it reads, writes and sends
 
@@ -74,10 +74,10 @@ Dependencies: `bash` and `curl`, both in Omarchy.
 ## Uninstall
 
 Switch **Teach my agents Busabase** off first (or run
-`~/.config/omarchy/plugins/busabase.busabase/bin/busabase-skills unlink`), then:
+`~/.config/omarchy/plugins/busabase/bin/busabase-skills unlink`), then:
 
 ```bash
-omarchy plugin remove busabase.busabase
+omarchy plugin remove busabase
 ```
 
 Your Busabase data and `~/.busabase/.env` are untouched.
@@ -87,7 +87,7 @@ Your Busabase data and `~/.busabase/.env` are untouched.
 ```bash
 node --test test/model.test.mjs        # pure logic
 omarchy plugin validate .               # manifest and layout
-omarchy-shell busabase.busabase status  # live state as JSON (never includes the key)
+omarchy-shell busabase status  # live state as JSON (never includes the key)
 ```
 
 The bundled skill in `skills/busabase` is copied from

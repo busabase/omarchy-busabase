@@ -9,7 +9,7 @@ import "Model.js" as Model
 // work your agents do on their own should be visible, not interrupting.
 BarWidget {
   id: root
-  moduleName: "busabase.busabase"
+  moduleName: "busabase"
 
   Service {
     id: service
