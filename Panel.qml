@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -109,7 +110,8 @@ Panel {
 
   // ---------------------------------------------------------------- ipc
 
-  ShellIpc {
+  // Plain Quickshell IpcHandler: works on every Omarchy 4.x (ShellIpc is newer).
+  IpcHandler {
     target: root.ipcTarget
     function open(): void { root.openFromHotkey() }
     function close(): void { root.close() }
@@ -143,13 +145,13 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(560))
 
-    content: PanelKeyCatcher {
+    // Children, not the newer lazy `content:` slot, so 4.0.x shells load it too.
+    PanelKeyCatcher {
       id: keyCatcher
-      implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) { root.moveCursor(dy) }
       onActivateRequested: root.activate(root.rows[root.cursor])
@@ -298,6 +300,9 @@ Panel {
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
+          // Two lines before eliding: these hints are the instructions.
+          wrapMode: Text.WordWrap
+          maximumLineCount: 2
           elide: Text.ElideRight
         }
       }
