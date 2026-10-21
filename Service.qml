@@ -40,7 +40,6 @@ Item {
   readonly property string kind: Model.connectionKind(baseUrl)
   readonly property bool connected: status === "ok"
   property bool localServerAvailable: false
-  property bool cliAvailable: false
 
   property var keptItems: []            // today's, newest first
   property var pendingItems: []         // mine, not merged yet, recent
@@ -120,13 +119,6 @@ Item {
       callback = null
       if (cb) cb(exitCode, stdout.text)
     }
-  }
-
-  Process {
-    id: cliCheck
-    running: false
-    command: ["bash", "-lc", "command -v busabase-cli >/dev/null"]
-    onExited: function(exitCode) { root.cliAvailable = exitCode === 0 }
   }
 
   // ---------------------------------------------------------------- refresh
@@ -270,9 +262,10 @@ Item {
 
   // Sign-in is busabase-cli's job: one flow for the CLI, the skill and this
   // widget. Device sign-in prints a short code and opens the browser.
+  readonly property string signinPath: pluginDir + "/bin/busabase-signin"
+
   function signIn() {
-    var cmd = cliAvailable ? "busabase-cli login" : "npx -y busabase-cli login"
-    Util.execDetached("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(cmd))
+    Util.execDetached("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(Util.shellQuote(signinPath)))
   }
 
   // An account-less local server needs no sign-in, only its address.
@@ -336,7 +329,6 @@ Item {
   }
 
   Component.onCompleted: {
-    cliCheck.running = true
     loadSkills()
     refresh()
   }

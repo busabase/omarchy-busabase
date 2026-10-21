@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# busabase-signin — what "Sign in to Busabase" runs inside Omarchy's floating
+# terminal: the Busabase logo under Omarchy's, then `busabase-cli login`, which
+# writes ~/.busabase/.env for the widget, the CLI and your agents alike.
+set -uo pipefail
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  teal=$'\e[38;5;43m' off=$'\e[0m'
+else
+  teal="" off=""
+fi
+
+# Same lettering as the `busabase server` and `busabase-cli` splash.
+printf '%s' "$teal"
+cat <<'LOGO'
+  ____                  _
+ | __ ) _   _ ___  __ _| |__   __ _ ___  ___
+ |  _ \| | | / __|/ _` | '_ \ / _` / __|/ _ \
+ | |_) | |_| \__ \ (_| | |_) | (_| \__ \  __/
+ |____/ \__,_|___/\__,_|_.__/ \__,_|___/\___|
+LOGO
+printf '%s\n' "$off"
+
+if command -v busabase-cli >/dev/null 2>&1; then
+  exec busabase-cli login
+fi
+exec npx -y busabase-cli@latest login
