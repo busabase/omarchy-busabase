@@ -160,7 +160,10 @@ Item {
     authProc.call(["GET", "/auth"], function(code, out, err) {
       if (code !== 0) { root.fail(code, err); return }
       var a = Model.parseJson(out, {})
-      root.userId = a.user && a.user.id ? String(a.user.id) : ""
+      // A local open-source server is single-user, and its API writes are
+      // attributed to a different local identity than /auth reports, so
+      // "mine" would match nothing there: count the whole space instead.
+      root.userId = root.kind !== "local" && a.user && a.user.id ? String(a.user.id) : ""
       root.userName = a.user && a.user.name ? String(a.user.name) : ""
       root.spaceId = a.space && a.space.id ? String(a.space.id) : ""
       root.spaceName = a.space && a.space.name ? String(a.space.name) : ""
