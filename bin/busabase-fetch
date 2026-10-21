@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# busabase-fetch — curl wrapper for the Busabase REST API (/api/v1).
+#
+# Reads the connection from ~/.busabase/.env, the same file `busabase-cli login`
+# and the `busabase` skill use, so signing in once covers the CLI, your agents,
+# and this widget. The file is parsed line by line, never sourced.
+#
+# The API key reaches curl through a mode-0600 config file, so it never appears
+# on any process command line.
+#
+# Usage:
+#   busabase-fetch METHOD API_PATH [JSON_BODY]   e.g. GET '/change-requests?status[]=merged'
+#   busabase-fetch probe [BASE_URL]              is a Busabase server answering there?
+#   busabase-fetch connection                    print the connection as JSON (no key)
+#
+# Exit codes: 0 ok (body on stdout), 3 not configured, 4 auth rejected,
+#             5 server unreachable, 1 any other failure (detail on stderr).
+set -euo pipefail
+
+ENV_FILE="${BUSABASE_ENV_FILE:-$HOME/.busabase/.env}"
+LOCAL_URL="http://localhost:15419"
+
+BASE_URL=""
+API_KEY=""
+SPACE_ID=""
+
+read_env() {
+  [[ -r "$ENV_FILE" ]] || return 0
+  local line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    line="${line#export }"
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    value="${value%"${value##*[![:space:]]}"}"
+    if [[ ${#value} -ge 2 && ( "$value" == \"*\" || "$value" == \'*\' ) ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+    case "$key" in
+      BUSABASE_BASE_URL) BASE_URL="$value" ;;
+      BUSABASE_API_KEY) API_KEY="$value" ;;
+      BUSABASE_SPACE_ID) SPACE_ID="$value" ;;
+    esac
+  done < "$ENV_FILE"
+}
+
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '%s' "$s"
+}
+
+CURL_CFG=""
+BODY_FILE=""
+cleanup() { rm -f ${CURL_CFG:+"$CURL_CFG"} ${BODY_FILE:+"$BODY_FILE"}; }
+trap cleanup EXIT
+
+# $1 method, $2 absolute url, $3 optional body. Prints body; exits with the
+# codes above on failure.
+request() {
+  local method="$1" url="$2" body="${3:-}" response status curl_exit
+  CURL_CFG=$(mktemp)   # mktemp creates 0600
+  if [[ -n "$API_KEY" ]]; then
+    printf 'header = "Authorization: Bearer %s"\n' "$API_KEY" >> "$CURL_CFG"
+  fi
+  if [[ -n "$SPACE_ID" ]]; then
+    printf 'header = "x-busabase-space: %s"\n' "$SPACE_ID" >> "$CURL_CFG"
+  fi
+  if [[ -n "$body" ]]; then
+    BODY_FILE=$(mktemp)
+    printf '%s' "$body" > "$BODY_FILE"
+  fi
+
+  set +e
+  response=$(curl -sS -g --connect-timeout 4 --max-time 15 -X "$method" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json' \
+    -H 'x-busabase-client: omarchy-busabase' \
+    -w $'\n%{http_code}' --config "$CURL_CFG" \
+    ${BODY_FILE:+--data @"$BODY_FILE"} \
+    "$url" 2>/dev/null)
+  curl_exit=$?
+  set -e
+
+  case "$curl_exit" in
+    0) ;;
+    6|7|28|35|52|56) echo "busabase-fetch: cannot reach $url (curl $curl_exit)" >&2; exit 5 ;;
+    *) echo "busabase-fetch: network error (curl $curl_exit)" >&2; exit 1 ;;
+  esac
+
+  status="${response##*$'\n'}"
+  local out="${response%$'\n'*}"
+  [[ "$out" == "$status" ]] && out=""
+
+  case "$status" in
+    2*) printf '%s' "$out"; return 0 ;;
+    401|403) echo "busabase-fetch: auth rejected (HTTP $status): $out" >&2; exit 4 ;;
+    000) echo "busabase-fetch: cannot reach $url" >&2; exit 5 ;;
+    *) echo "busabase-fetch: HTTP $status: $out" >&2; exit 1 ;;
+  esac
+}
+
+read_env
+
+case "${1:-}" in
+  connection)
+    printf '{"baseUrl":"%s","spaceId":"%s","hasKey":%s,"envFile":"%s","envExists":%s}\n' \
+      "$(json_escape "$BASE_URL")" "$(json_escape "$SPACE_ID")" \
+      "$([[ -n "$API_KEY" ]] && echo true || echo false)" \
+      "$(json_escape "$ENV_FILE")" \
+      "$([[ -r "$ENV_FILE" ]] && echo true || echo false)"
+    exit 0
+    ;;
+  probe)
+    # Probe without credentials: a server that answers /api/v1/auth at all is
+    # a Busabase server; whether it needs sign-in is a separate question.
+    target="${2:-$LOCAL_URL}"
+    API_KEY=""
+    SPACE_ID=""
+    target="${target%/}"
+    set +e
+    code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4 "$target/api/v1/auth")
+    set -e
+    case "$code" in
+      200) echo '{"reachable":true,"authRequired":false}' ;;
+      400|401|403) echo '{"reachable":true,"authRequired":true}' ;;
+      *) echo '{"reachable":false,"authRequired":false}'; exit 5 ;;
+    esac
+    exit 0
+    ;;
+esac
+
+METHOD="${1:?usage: busabase-fetch METHOD API_PATH [JSON_BODY]}"
+API_PATH="${2:?usage: busabase-fetch METHOD API_PATH [JSON_BODY]}"
+BODY="${3:-}"
+
+case "$METHOD" in
+  GET|POST|PUT|PATCH|DELETE) ;;
+  *) echo "busabase-fetch: unsupported method: $METHOD" >&2; exit 1 ;;
+esac
+
+[[ "$API_PATH" == /* ]] || { echo "busabase-fetch: API_PATH must start with /" >&2; exit 1; }
+
+# No file at all, or a file without a server address, is "not connected yet".
+# An address without a key is legitimate: a local, account-less server.
+[[ -n "$BASE_URL" ]] || { echo "busabase-fetch: not configured ($ENV_FILE)" >&2; exit 3; }
+
+request "$METHOD" "${BASE_URL%/}/api/v1$API_PATH" "$BODY"

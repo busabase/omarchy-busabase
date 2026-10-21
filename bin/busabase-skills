@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# busabase-skills — teach your coding agents Busabase by linking the bundled
+# skills into each agent's skill directory, the same directories Omarchy links
+# its own skill into.
+#
+# Usage:
+#   busabase-skills status   JSON: per agent directory, is each skill ours / yours / absent
+#   busabase-skills link     create symlinks for every bundled skill
+#   busabase-skills unlink   remove only the symlinks this plugin created
+#
+# Safety rules:
+#   - only symlinks are created, never copies, so removing the plugin leaves
+#     nothing behind but dangling links that `unlink` (or a re-run) clears;
+#   - a skill directory you installed yourself (e.g. `npx skills add
+#     busabase/skills`) is reported as "yours" and never touched;
+#   - an agent directory is only used when that agent is installed (its home
+#     directory exists), except ~/.agents/skills, the generic location.
+set -euo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+SKILLS_DIR="$PLUGIN_DIR/skills"
+
+# "<agent label>|<skills dir>|<agent home that must exist, or empty>"
+TARGETS=(
+  "Any agent|$HOME/.agents/skills|"
+  "Claude Code|$HOME/.claude/skills|$HOME/.claude"
+  "Codex|$HOME/.codex/skills|$HOME/.codex"
+  "Pi|$HOME/.pi/agent/skills|$HOME/.pi"
+  "Hermes|$HOME/.hermes/skills|$HOME/.hermes"
+  "Antigravity|$HOME/.gemini/config/skills|$HOME/.gemini"
+)
+
+skill_names() {
+  local d
+  for d in "$SKILLS_DIR"/*/; do
+    [[ -f "$d/SKILL.md" ]] && basename "$d"
+  done
+}
+
+# ours | yours | broken | absent
+state_of() {
+  local path="$1" name="$2"
+  if [[ -L "$path" ]]; then
+    local dest
+    dest="$(readlink "$path")"
+    if [[ "$dest" == "$SKILLS_DIR/$name" ]]; then
+      [[ -e "$path" ]] && echo ours || echo broken
+    else
+      echo yours
+    fi
+  elif [[ -e "$path" ]]; then
+    echo yours
+  else
+    echo absent
+  fi
+}
+
+json_str() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '"%s"' "$s"
+}
+
+active_targets() {
+  local entry label dir home
+  for entry in "${TARGETS[@]}"; do
+    IFS='|' read -r label dir home <<< "$entry"
+    [[ -z "$home" || -d "$home" ]] || continue
+    printf '%s|%s\n' "$label" "$dir"
+  done
+}
+
+cmd_status() {
+  local first_t=1 label dir name state first_s
+  printf '{"skills":['
+  local first_n=1
+  while IFS= read -r name; do
+    [[ $first_n -eq 1 ]] || printf ','
+    first_n=0
+    json_str "$name"
+  done < <(skill_names)
+  printf '],"targets":['
+  while IFS='|' read -r label dir; do
+    [[ $first_t -eq 1 ]] || printf ','
+    first_t=0
+    printf '{"agent":%s,"dir":%s,"skills":{' "$(json_str "$label")" "$(json_str "$dir")"
+    first_s=1
+    while IFS= read -r name; do
+      state="$(state_of "$dir/$name" "$name")"
+      [[ $first_s -eq 1 ]] || printf ','
+      first_s=0
+      printf '%s:%s' "$(json_str "$name")" "$(json_str "$state")"
+    done < <(skill_names)
+    printf '}}'
+  done < <(active_targets)
+  printf ']}\n'
+}
+
+cmd_link() {
+  local label dir name state linked=0 kept=0
+  while IFS='|' read -r label dir; do
+    mkdir -p "$dir"
+    while IFS= read -r name; do
+      state="$(state_of "$dir/$name" "$name")"
+      case "$state" in
+        absent) ln -s "$SKILLS_DIR/$name" "$dir/$name"; linked=$((linked + 1)) ;;
+        broken) rm -f "$dir/$name"; ln -s "$SKILLS_DIR/$name" "$dir/$name"; linked=$((linked + 1)) ;;
+        yours) kept=$((kept + 1)) ;;
+        ours) ;;
+      esac
+    done < <(skill_names)
+  done < <(active_targets)
+  echo "linked $linked, left $kept of your own in place"
+}
+
+cmd_unlink() {
+  local entry label dir home name removed=0
+  # Every known directory, installed agent or not: a link we made earlier must
+  # be removable even if that agent was uninstalled since.
+  for entry in "${TARGETS[@]}"; do
+    IFS='|' read -r label dir home <<< "$entry"
+    while IFS= read -r name; do
+      if [[ -L "$dir/$name" && "$(readlink "$dir/$name")" == "$SKILLS_DIR/$name" ]]; then
+        rm -f "$dir/$name"
+        removed=$((removed + 1))
+      fi
+    done < <(skill_names)
+  done
+  echo "removed $removed"
+}
+
+case "${1:-status}" in
+  status) cmd_status ;;
+  link) cmd_link ;;
+  unlink) cmd_unlink ;;
+  *) echo "usage: busabase-skills status|link|unlink" >&2; exit 1 ;;
+esac

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "busabase.busabase",
+  "name": "Busabase",
+  "version": "0.1.0",
+  "author": "Busabase",
+  "license": "MIT",
+  "description": "Your agents' work, kept. See what Claude Code and Codex saved to Busabase today, with a +1 in the bar as it lands, and teach your agents Busabase in one switch. Cloud or local.",
+  "homepage": "https://busabase.com",
+  "repository": "https://github.com/busabase/omarchy-busabase",
+  "keywords": ["busabase", "agents", "claude-code", "codex", "skills", "database", "knowledge-base"],
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Busabase",
+    "description": "What you and your agents kept in Busabase today",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 60,
+      "showCount": true
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "How often to check Busabase (seconds)",
+        "min": 15,
+        "max": 3600,
+        "step": 15,
+        "defaultValue": 60
+      },
+      {
+        "key": "showCount",
+        "type": "boolean",
+        "label": "Show today's kept count next to the icon",
+        "defaultValue": true
+      }
+    ]
+  }
+}
