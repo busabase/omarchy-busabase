@@ -81,6 +81,9 @@ Plugins run unsandboxed as your user, so here is the full list.
 - **Network:** only `GET` requests to the server in `BUSABASE_BASE_URL`
   (`/auth`, `/change-requests`, `/change-requests/counts`), every 60 seconds by
   default, plus one probe of `localhost:15419` when you are not connected.
+  Every response is capped at 4 MB (curl aborts past that), compressed
+  encodings are never requested, and names from the server are shortened
+  before they are drawn, so a broken or hostile server can't stall the shell.
 - **Writes** `~/.busabase/.env` only when you choose *Use Busabase on this
   computer* (it sets `BUSABASE_BASE_URL`), and symlinks in your agents' skill
   folders only when you switch the skill on. It never overwrites a skill you

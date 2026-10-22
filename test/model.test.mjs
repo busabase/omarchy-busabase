@@ -128,3 +128,14 @@ test("the agent client beats the key name, and the key shows only when it adds s
   assert.equal(Model.summaryOf(legacy), "Kelly Agent added 3 records to Competitors");
   assert.equal(Model.metaOf(legacy, now), "1h ago · openapi");
 });
+
+test("server-provided names are clipped before they reach the shell", () => {
+  const long = "x".repeat(5000);
+  const row = cr({ base: { name: long }, sourceAttribution: { displayName: long, agent: { id: "a", name: long } } });
+  const summary = Model.summaryOf(row);
+  assert.ok(summary.length < 160, `summary is ${summary.length} chars`);
+  assert.equal(Model.clip("a\n\n  b", 10), "a b");
+  assert.equal(Model.clip("abcdefghijk", 5), "abcd…");
+  assert.equal(Model.clip(null), "");
+});
+

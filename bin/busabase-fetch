@@ -55,14 +55,23 @@ json_escape() {
 
 CURL_CFG=""
 BODY_FILE=""
-cleanup() { rm -f ${CURL_CFG:+"$CURL_CFG"} ${BODY_FILE:+"$BODY_FILE"}; }
+OUT_FILE=""
+cleanup() { rm -f ${CURL_CFG:+"$CURL_CFG"} ${BODY_FILE:+"$BODY_FILE"} ${OUT_FILE:+"$OUT_FILE"}; }
 trap cleanup EXIT
+
+# Everything printed here ends up inside the long-running Omarchy shell, so a
+# response is bounded before it gets there: at most MAX_BYTES of body (curl
+# aborts the transfer past that, declared length or not), no compressed
+# encodings requested (so no decompression bomb), and error text cut short.
+MAX_BYTES=$((4 * 1024 * 1024))
+ERROR_CHARS=300
 
 # $1 method, $2 absolute url; a non-GET reads its JSON body from stdin. Prints
 # the response body; exits with the codes above on failure.
 request() {
-  local method="$1" url="$2" response status curl_exit
+  local method="$1" url="$2" status curl_exit
   CURL_CFG=$(mktemp)   # mktemp creates 0600
+  OUT_FILE=$(mktemp)   # 0600
   if [[ -n "$API_KEY" ]]; then
     printf 'header = "Authorization: Bearer %s"\n' "$API_KEY" >> "$CURL_CFG"
   fi
@@ -71,15 +80,16 @@ request() {
   fi
   if [[ "$method" != "GET" && ! -t 0 ]]; then
     BODY_FILE=$(mktemp)   # 0600
-    cat > "$BODY_FILE"
+    head -c "$MAX_BYTES" > "$BODY_FILE"
     [[ -s "$BODY_FILE" ]] || { rm -f "$BODY_FILE"; BODY_FILE=""; }
   fi
 
   set +e
-  response=$(curl -sS -g --connect-timeout 4 --max-time 15 -X "$method" \
+  status=$(curl -sS -g --connect-timeout 4 --max-time 15 --max-filesize "$MAX_BYTES" \
+    -X "$method" \
     -H 'Content-Type: application/json' -H 'Accept: application/json' \
     -H 'x-busabase-client: omarchy-busabase' \
-    -w $'\n%{http_code}' --config "$CURL_CFG" \
+    -o "$OUT_FILE" -w '%{http_code}' --config "$CURL_CFG" \
     ${BODY_FILE:+--data @"$BODY_FILE"} \
     "$url" 2>/dev/null)
   curl_exit=$?
@@ -88,18 +98,21 @@ request() {
   case "$curl_exit" in
     0) ;;
     6|7|28|35|52|56) echo "busabase-fetch: cannot reach $url (curl $curl_exit)" >&2; exit 5 ;;
+    63) echo "busabase-fetch: response larger than $MAX_BYTES bytes, refused" >&2; exit 1 ;;
     *) echo "busabase-fetch: network error (curl $curl_exit)" >&2; exit 1 ;;
   esac
 
-  status="${response##*$'\n'}"
-  local out="${response%$'\n'*}"
-  [[ "$out" == "$status" ]] && out=""
+  # Belt and braces for a curl that does not enforce --max-filesize mid-stream.
+  if (( $(stat -c %s "$OUT_FILE") > MAX_BYTES )); then
+    echo "busabase-fetch: response larger than $MAX_BYTES bytes, refused" >&2
+    exit 1
+  fi
 
   case "$status" in
-    2*) printf '%s' "$out"; return 0 ;;
-    401|403) echo "busabase-fetch: auth rejected (HTTP $status): $out" >&2; exit 4 ;;
+    2*) cat "$OUT_FILE"; return 0 ;;
+    401|403) echo "busabase-fetch: auth rejected (HTTP $status): $(head -c "$ERROR_CHARS" "$OUT_FILE")" >&2; exit 4 ;;
     000) echo "busabase-fetch: cannot reach $url" >&2; exit 5 ;;
-    *) echo "busabase-fetch: HTTP $status: $out" >&2; exit 1 ;;
+    *) echo "busabase-fetch: HTTP $status: $(head -c "$ERROR_CHARS" "$OUT_FILE")" >&2; exit 1 ;;
   esac
 }
 

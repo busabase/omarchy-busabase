@@ -125,7 +125,7 @@ Item {
 
   function fail(exitCode, stderrText) {
     status = Model.statusForExit(exitCode)
-    lastError = String(stderrText || "").trim()
+    lastError = Model.clip(stderrText, 300)
     refreshing = false
     if (status === "not-configured" || status === "unreachable") probeLocal()
   }
@@ -156,9 +156,9 @@ Item {
       // attributed to a different local identity than /auth reports, so
       // "mine" would match nothing there: count the whole space instead.
       root.userId = root.kind !== "local" && a.user && a.user.id ? String(a.user.id) : ""
-      root.userName = a.user && a.user.name ? String(a.user.name) : ""
+      root.userName = a.user && a.user.name ? Model.clip(a.user.name, 40) : ""
       root.spaceId = a.space && a.space.id ? String(a.space.id) : ""
-      root.spaceName = a.space && a.space.name ? String(a.space.name) : ""
+      root.spaceName = a.space && a.space.name ? Model.clip(a.space.name) : ""
       root.status = "ok"
       root.lastError = ""
       loadKept()

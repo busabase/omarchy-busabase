@@ -5,6 +5,16 @@
 
 var LOCAL_BASE_URL = "http://localhost:15419"
 
+// Names come from the server and are drawn inside the shared shell: keep each
+// one short enough that a hostile or broken server can't blow up layout.
+var MAX_NAME = 60
+
+function clip(value, max) {
+  var text = String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim()
+  var limit = max || MAX_NAME
+  return text.length > limit ? text.slice(0, limit - 1) + "…" : text
+}
+
 function parseJson(text, fallback) {
   try {
     var value = JSON.parse(String(text || ""))
@@ -152,12 +162,12 @@ function verbFor(operation) {
 function agentOf(cr) {
   var attribution = cr && cr.sourceAttribution
   var agent = attribution && attribution.agent
-  return agent && agent.name ? String(agent.name) : ""
+  return agent && agent.name ? clip(agent.name, 40) : ""
 }
 
 function keyNameOf(cr) {
   var attribution = cr && cr.sourceAttribution
-  return attribution && attribution.displayName ? String(attribution.displayName) : ""
+  return attribution && attribution.displayName ? clip(attribution.displayName, 40) : ""
 }
 
 function authorOf(cr) {
@@ -166,7 +176,7 @@ function authorOf(cr) {
   var key = keyNameOf(cr)
   if (key) return key
   var user = cr && cr.submittedByUser
-  if (user && user.name) return String(user.name)
+  if (user && user.name) return clip(user.name, 40)
   return "Someone"
 }
 
@@ -180,13 +190,13 @@ function metaOf(cr, nowMs) {
   var agent = agentOf(cr)
   if (agent && key && key.toLowerCase() !== agent.toLowerCase()) parts.push("key " + key)
   var channel = cr && cr.sourceAttribution && cr.sourceAttribution.channel
-  if (channel && !agent) parts.push(String(channel))
+  if (channel && !agent) parts.push(clip(channel, 20))
   return parts.join(" · ")
 }
 
 function targetOf(cr) {
-  if (cr && cr.base && cr.base.name) return String(cr.base.name)
-  if (cr && cr.node && cr.node.name) return String(cr.node.name)
+  if (cr && cr.base && cr.base.name) return clip(cr.base.name)
+  if (cr && cr.node && cr.node.name) return clip(cr.node.name)
   return "your workspace"
 }
 
