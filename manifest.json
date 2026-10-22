@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "busabase",
   "name": "Busabase",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Busabase",
   "license": "MIT",
   "description": "Your agents' work, kept. See what Claude Code and Codex saved to Busabase today, with a +1 in the bar as it lands, and teach your agents Busabase in one switch. Cloud or local.",

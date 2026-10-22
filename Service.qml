@@ -270,7 +270,8 @@ Item {
 
   // An account-less local server needs no sign-in, only its address.
   function useLocalServer() {
-    Util.execDetached("mkdir -p \"$HOME/.busabase\" && umask 077 && "
+    // umask first, so a freshly created ~/.busabase is 0700 and .env 0600.
+    Util.execDetached("umask 077 && mkdir -p \"$HOME/.busabase\" && "
       + "f=\"$HOME/.busabase/.env\"; touch \"$f\"; "
       + "grep -v '^BUSABASE_BASE_URL=' \"$f\" > \"$f.tmp\" || true; "
       + "printf 'BUSABASE_BASE_URL=%s\\n' " + Util.shellQuote(Model.LOCAL_BASE_URL) + " >> \"$f.tmp\"; "

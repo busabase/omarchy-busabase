@@ -5,11 +5,11 @@
 # and the `busabase` skill use, so signing in once covers the CLI, your agents,
 # and this widget. The file is parsed line by line, never sourced.
 #
-# The API key reaches curl through a mode-0600 config file, so it never appears
-# on any process command line.
+# The API key reaches curl through a mode-0600 config file and a request body
+# is read from stdin, so neither ever appears on a process command line.
 #
 # Usage:
-#   busabase-fetch METHOD API_PATH [JSON_BODY]   e.g. GET '/change-requests?status[]=merged'
+#   busabase-fetch METHOD API_PATH [< body.json]  e.g. GET '/change-requests?status[]=merged'
 #   busabase-fetch probe [BASE_URL]              is a Busabase server answering there?
 #   busabase-fetch connection                    print the connection as JSON (no key)
 #
@@ -58,10 +58,10 @@ BODY_FILE=""
 cleanup() { rm -f ${CURL_CFG:+"$CURL_CFG"} ${BODY_FILE:+"$BODY_FILE"}; }
 trap cleanup EXIT
 
-# $1 method, $2 absolute url, $3 optional body. Prints body; exits with the
-# codes above on failure.
+# $1 method, $2 absolute url; a non-GET reads its JSON body from stdin. Prints
+# the response body; exits with the codes above on failure.
 request() {
-  local method="$1" url="$2" body="${3:-}" response status curl_exit
+  local method="$1" url="$2" response status curl_exit
   CURL_CFG=$(mktemp)   # mktemp creates 0600
   if [[ -n "$API_KEY" ]]; then
     printf 'header = "Authorization: Bearer %s"\n' "$API_KEY" >> "$CURL_CFG"
@@ -69,9 +69,10 @@ request() {
   if [[ -n "$SPACE_ID" ]]; then
     printf 'header = "x-busabase-space: %s"\n' "$SPACE_ID" >> "$CURL_CFG"
   fi
-  if [[ -n "$body" ]]; then
-    BODY_FILE=$(mktemp)
-    printf '%s' "$body" > "$BODY_FILE"
+  if [[ "$method" != "GET" && ! -t 0 ]]; then
+    BODY_FILE=$(mktemp)   # 0600
+    cat > "$BODY_FILE"
+    [[ -s "$BODY_FILE" ]] || { rm -f "$BODY_FILE"; BODY_FILE=""; }
   fi
 
   set +e
@@ -132,9 +133,8 @@ case "${1:-}" in
     ;;
 esac
 
-METHOD="${1:?usage: busabase-fetch METHOD API_PATH [JSON_BODY]}"
-API_PATH="${2:?usage: busabase-fetch METHOD API_PATH [JSON_BODY]}"
-BODY="${3:-}"
+METHOD="${1:?usage: busabase-fetch METHOD API_PATH [< body.json]}"
+API_PATH="${2:?usage: busabase-fetch METHOD API_PATH [< body.json]}"
 
 case "$METHOD" in
   GET|POST|PUT|PATCH|DELETE) ;;
@@ -147,4 +147,4 @@ esac
 # An address without a key is legitimate: a local, account-less server.
 [[ -n "$BASE_URL" ]] || { echo "busabase-fetch: not configured ($ENV_FILE)" >&2; exit 3; }
 
-request "$METHOD" "${BASE_URL%/}/api/v1$API_PATH" "$BODY"
+request "$METHOD" "${BASE_URL%/}/api/v1$API_PATH"

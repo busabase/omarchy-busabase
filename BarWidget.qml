@@ -154,6 +154,7 @@ BarWidget {
 
         Text {
           id: countText
+          textFormat: Text.PlainText
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           text: root.cellText
