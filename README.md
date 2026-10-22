@@ -7,7 +7,8 @@
 Claude Code and Codex do real work — research, lists, decisions — and it usually
 evaporates when the session closes. With [Busabase](https://busabase.com) your
 agents save that work into a database and knowledge base you own. This widget
-puts it in your Omarchy bar.
+puts it in your Omarchy bar. Overview and screenshots:
+[busabase.com/omarchy-plugin](https://busabase.com/omarchy-plugin).
 
 - **Today's count, with a `+1` as it lands.** When an agent saves something, the
   count flashes `+1` and settles on the new total. No toast, no sound — work your
@@ -41,7 +42,7 @@ yet — click it:
 **1. Sign in.** *Sign in to Busabase* opens Omarchy's terminal with
 `busabase-cli login`. Press Enter for Busabase Cloud, then approve the short code
 in your browser. (It runs `busabase-cli` if installed, otherwise
-the pinned `npx busabase-cli@0.97.0`, which needs Node.js — Omarchy ships it via mise.)
+the pinned `npx busabase-cli@0.98.0`, which needs Node.js — Omarchy ships it via mise.)
 
 ![The sign-in terminal: the Omarchy and Busabase logos, then busabase-cli login](assets/sign-in.png)
 
@@ -121,7 +122,7 @@ Plugins run unsandboxed as your user, so here is the full list.
   the first metadata line of a Codex session) to find the session that ended. It
   never reads conversation content; the agent does that itself, after you click.
 - **Never** runs an installer, asks for root or administrator rights, or
-  downloads code — except the pinned `npx busabase-cli@0.97.0 login` fallback,
+  downloads code — except the pinned `npx busabase-cli@0.98.0 login` fallback,
   which only runs when you click *Sign in* and `busabase-cli` is missing.
 
 Dependencies: `bash`, `curl`, `jq`, `wl-clipboard` and `notify-send`, all in

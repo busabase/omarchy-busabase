@@ -6,7 +6,7 @@
   "author": "Busabase",
   "license": "MIT",
   "description": "Your agents' work, kept. See what Claude Code and Codex saved to Busabase today, with a +1 in the bar as it lands, and teach your agents Busabase in one switch. Cloud or local.",
-  "homepage": "https://busabase.com",
+  "homepage": "https://busabase.com/omarchy-plugin",
   "repository": "https://github.com/busabase/omarchy-busabase",
   "keywords": ["busabase", "agents", "claude-code", "codex", "skills", "database", "knowledge-base"],
   "kinds": ["bar-widget"],
