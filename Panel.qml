@@ -138,7 +138,9 @@ Panel {
       if (!s) return "no-service"
       return JSON.stringify({ status: s.status, kind: s.kind, space: s.spaceName, kept: s.keptCount,
                               pending: s.pendingCount, inbox: s.inboxCount, skills: s.skillsState,
-                              serverFiltersMine: s.serverFiltersMine, error: s.lastError })
+                              serverFiltersMine: s.serverFiltersMine, error: s.lastError,
+                              keepSessions: s.keepSessions, trackedSessions: Object.keys(s._trackedSessions).length,
+                              sessionsScans: s.sessionsScans })
     }
   }
 

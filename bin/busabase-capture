@@ -43,11 +43,14 @@ agent="$("$PLUGIN_BIN/busabase-agent" which)" || {
   exit 0
 }
 
+case "$agent" in claude) agent="Claude Code" ;; codex) agent="Codex" ;; esac
 bytes=$(stat -c %s "$note")
-notify "Keeping it" "$agent is filing $bytes bytes into Busabase."
+notify "Keeping it" "$agent is filing it in Busabase ($bytes bytes)."
 
-if answer="$("$PLUGIN_BIN/busabase-agent" capture "$note")"; then
-  notify "Kept in Busabase" "${answer:-Saved.}"
-else
-  notify "Couldn't keep it" "$agent didn't finish. Nothing was saved."
-fi
+answer="$("$PLUGIN_BIN/busabase-agent" capture "$note")" || answer=""
+case "$answer" in
+  Saved:*) notify "Kept in Busabase" "${answer#Saved:}" ;;
+  "Not saved:"*) notify "Not kept" "${answer#Not saved:}" ;;
+  "") notify "Couldn't keep it" "$agent didn't finish. Nothing was saved." ;;
+  *) notify "Check Busabase" "$agent said: $answer" ;;
+esac

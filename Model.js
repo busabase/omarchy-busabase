@@ -15,6 +15,14 @@ function clip(value, max) {
   return text.length > limit ? text.slice(0, limit - 1) + "…" : text
 }
 
+// A whole-number setting, clamped. 0 is a real value, not "unset" — a bare
+// `parseInt(x) || fallback` would turn a deliberate 0 into the fallback.
+function intSetting(value, fallback, min, max) {
+  var n = parseInt(String(value), 10)
+  if (!isFinite(n)) n = fallback
+  return Math.max(min, Math.min(max, n))
+}
+
 function parseJson(text, fallback) {
   try {
     var value = JSON.parse(String(text || ""))

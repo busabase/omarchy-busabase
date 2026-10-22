@@ -27,10 +27,10 @@ Item {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
   }
-  readonly property int refreshIntervalSec: Math.max(15, Math.min(3600, parseInt(setting("refreshIntervalSec", 60), 10) || 60))
+  readonly property int refreshIntervalSec: Model.intSetting(setting("refreshIntervalSec", 60), 60, 15, 3600)
   // Opt-in: notice finished Claude Code / Codex sessions and offer to keep them.
   readonly property bool keepSessions: setting("keepSessions", false) === true
-  readonly property int keepSessionsMinMinutes: Math.max(0, Math.min(240, parseInt(setting("keepSessionsMinMinutes", 10), 10) || 10))
+  readonly property int keepSessionsMinMinutes: Model.intSetting(setting("keepSessionsMinMinutes", 10), 10, 0, 240)
 
   // ---------------------------------------------------------------- state
 
@@ -309,6 +309,7 @@ Item {
   // ---------------------------------------------------------------- sessions
 
   property var _trackedSessions: ({})
+  property int sessionsScans: 0
   readonly property string sessionsPath: pluginDir + "/bin/busabase-sessions"
   readonly property string offerPath: pluginDir + "/bin/busabase-offer"
 
@@ -318,7 +319,8 @@ Item {
     command: [root.sessionsPath, "live"]
     stdout: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
-      if (exitCode !== 0) return
+      root.sessionsScans++
+      if (exitCode !== 0) { console.warn("busabase: session scan failed", exitCode); return }
       var live = Model.parseJson(stdout.text, [])
       var result = Model.endedSessions(root._trackedSessions, live, Math.floor(Date.now() / 1000), root.keepSessionsMinMinutes)
       root._trackedSessions = result.tracked

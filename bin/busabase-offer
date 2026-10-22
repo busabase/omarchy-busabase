@@ -45,8 +45,11 @@ choice="$(notify-send -a "$APP" -i dialog-information -t 60000 --wait \
 [[ "$choice" == "default" ]] || exit 0
 
 notify-send -a "$APP" -i dialog-information "Keeping it" "$name is saving what's worth keeping from that session." >/dev/null 2>&1 || true
-if answer="$("$PLUGIN_BIN/busabase-agent" keep-session "$agent" "$session" "$cwd")"; then
-  notify-send -a "$APP" -i dialog-information "Kept in Busabase" "${answer:-Saved.}" >/dev/null 2>&1 || true
-else
-  notify-send -a "$APP" -i dialog-information "Couldn't keep it" "$name didn't finish. Nothing was saved." >/dev/null 2>&1 || true
-fi
+answer="$("$PLUGIN_BIN/busabase-agent" keep-session "$agent" "$session" "$cwd")" || answer=""
+case "$answer" in
+  Saved:*) title="Kept in Busabase"; body="${answer#Saved:}" ;;
+  "Not saved:"*) title="Nothing kept"; body="${answer#Not saved:}" ;;
+  "") title="Couldn't keep it"; body="$name didn't finish. Nothing was saved." ;;
+  *) title="Check Busabase"; body="$name said: $answer" ;;
+esac
+notify-send -a "$APP" -i dialog-information "$title" "$body" >/dev/null 2>&1 || true

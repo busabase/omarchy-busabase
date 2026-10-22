@@ -17,6 +17,7 @@
 # Exit codes: 0 done (answer on stdout), 3 no agent available, 1 the agent failed.
 set -uo pipefail
 
+PLUGIN_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TIME_LIMIT="${BUSABASE_AGENT_TIMEOUT:-600}"
 ANSWER_CHARS=200
 SUPPORTED="claude codex"
@@ -78,11 +79,29 @@ run_agent() {
   return 0
 }
 
-CAPTURE_INSTRUCTION='Use the busabase skill. The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Never delete or overwrite anything. Then reply with one short sentence saying what you saved and where, without links.
+# The person asked for this (a keypress or a click), so say so, and name the one
+# server their stored key may go to. Without this, an agent that reviews its own
+# actions (Codex --approve-for-me) rightly refuses to send a local credential
+# to a destination nobody vouched for.
+authorization() {
+  local base host
+  base="$("$PLUGIN_BIN/busabase-fetch" connection 2>/dev/null | jq -r '.baseUrl // empty' 2>/dev/null)"
+  host="$(sed -E 's#^[a-z]+://##; s#/.*$##' <<<"$base")"
+  [[ -n "$host" ]] || host="the server in ~/.busabase/.env"
+  printf '%s' "Authorization: the user signed in to Busabase at ${host} with busabase-cli login (credentials in ~/.busabase/.env) and asked for this from their Omarchy desktop just now. For this task only, you may use that stored key with ${host} and no other server.
+
+"
+}
+
+REPLY_RULE='
+
+Reply with exactly one line. Start it with "Saved:" if something was saved (say what and where, no links), or "Not saved:" with the reason.'
+
+CAPTURE_INSTRUCTION='Use the busabase skill. The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Use the fields a Base already has: do not change any Base'"'"'s structure (no new fields, Bases or views) for a quick note, and never delete or overwrite anything. If nothing fits, do not save.'"$REPLY_RULE"'
 
 Note file: '
 
-KEEP_INSTRUCTION='This coding session is over. Use the busabase skill to keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing. Then reply with one short sentence saying what you saved and where, without links.'
+KEEP_INSTRUCTION='This coding session is over. Use the busabase skill to keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing.'"$REPLY_RULE"
 
 case "${1:-}" in
   which)
@@ -92,7 +111,7 @@ case "${1:-}" in
     file="${2:?usage: busabase-agent capture <file>}"
     [[ -r "$file" ]] || { echo "busabase-agent: cannot read $file" >&2; exit 1; }
     agent="$(pick_agent)" || { echo "busabase-agent: no supported agent (claude or codex) is installed" >&2; exit 3; }
-    run_agent "$agent" "" "${CAPTURE_INSTRUCTION}${file}"
+    run_agent "$agent" "" "$(authorization)${CAPTURE_INSTRUCTION}${file}"
     ;;
   keep-session)
     agent="${2:?usage: busabase-agent keep-session <agent> <session> [cwd]}"
@@ -103,7 +122,7 @@ case "${1:-}" in
     [[ "$session" =~ ^[A-Za-z0-9-]{8,64}$ ]] || { echo "busabase-agent: bad session id" >&2; exit 1; }
     # Resume where the session ran, so the agent sees the same project.
     if [[ -n "$cwd" && -d "$cwd" ]]; then cd "$cwd" || exit 1; fi
-    run_agent "$agent" "$session" "$KEEP_INSTRUCTION"
+    run_agent "$agent" "$session" "$(authorization)${KEEP_INSTRUCTION}"
     ;;
   *)
     echo "usage: busabase-agent which | capture <file> | keep-session <agent> <session> [cwd]" >&2

@@ -176,3 +176,11 @@ test("an exact session id is carried through; a Codex session sharing its direct
   assert.deepEqual(plain(state.ended.map((e) => e.agent + ":" + e.cwd)), ["codex:/w/api"]);
 });
 
+test("a setting of 0 minutes stays 0", () => {
+  assert.equal(Model.intSetting(0, 10, 0, 240), 0);
+  assert.equal(Model.intSetting("0", 10, 0, 240), 0);
+  assert.equal(Model.intSetting(undefined, 10, 0, 240), 10);
+  assert.equal(Model.intSetting("x", 60, 15, 3600), 60);
+  assert.equal(Model.intSetting(5, 60, 15, 3600), 15);
+});
+
