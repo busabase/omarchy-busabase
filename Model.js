@@ -146,14 +146,42 @@ function verbFor(operation) {
   return "changed"
 }
 
-// Who wrote it: the agent's declared name beats the account name, because
-// "Claude Code" is what the person recognises, not their own name.
-function authorOf(cr) {
+// Who wrote it, in the order a person recognises it: the agent client that
+// made the call ("Codex", reported by busabase-cli), then the API key's name
+// (people often name keys after agents), then the account.
+function agentOf(cr) {
   var attribution = cr && cr.sourceAttribution
-  if (attribution && attribution.displayName) return String(attribution.displayName)
+  var agent = attribution && attribution.agent
+  return agent && agent.name ? String(agent.name) : ""
+}
+
+function keyNameOf(cr) {
+  var attribution = cr && cr.sourceAttribution
+  return attribution && attribution.displayName ? String(attribution.displayName) : ""
+}
+
+function authorOf(cr) {
+  var agent = agentOf(cr)
+  if (agent) return agent
+  var key = keyNameOf(cr)
+  if (key) return key
   var user = cr && cr.submittedByUser
   if (user && user.name) return String(user.name)
   return "Someone"
+}
+
+// Second line of a feed row: when, then the key — but only when it adds
+// something the first line didn't already say.
+function metaOf(cr, nowMs) {
+  var parts = []
+  var when = relativeTime(cr && (cr.mergedAt || cr.updatedAt), nowMs)
+  if (when) parts.push(when)
+  var key = keyNameOf(cr)
+  var agent = agentOf(cr)
+  if (agent && key && key.toLowerCase() !== agent.toLowerCase()) parts.push("key " + key)
+  var channel = cr && cr.sourceAttribution && cr.sourceAttribution.channel
+  if (channel && !agent) parts.push(String(channel))
+  return parts.join(" · ")
 }
 
 function targetOf(cr) {

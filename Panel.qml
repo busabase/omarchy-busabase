@@ -62,9 +62,8 @@ Panel {
       var items = s.keptItems
       for (var i = 0; i < Math.min(items.length, root.maxItems); i++) {
         var cr = items[i]
-        var channel = cr.sourceAttribution && cr.sourceAttribution.channel ? " · " + cr.sourceAttribution.channel : ""
         out.push({ key: "cr:" + cr.id, icon: "", title: Model.summaryOf(cr),
-                   meta: Model.relativeTime(cr.mergedAt || cr.updatedAt, s.nowMs) + channel, act: "change", cr: cr })
+                   meta: Model.metaOf(cr, s.nowMs), act: "change", cr: cr })
       }
       out.push({ key: "all", icon: "",
                  title: items.length > root.maxItems ? "See all " + items.length + " in Busabase" : "Open Busabase",

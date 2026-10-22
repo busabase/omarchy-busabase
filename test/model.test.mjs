@@ -114,3 +114,17 @@ test("status lines name the real problem, local vs cloud", () => {
   assert.match(Model.statusLine("unreachable", "cloud"), /Offline/);
   assert.equal(Model.statusLine("ok", "cloud"), "");
 });
+
+test("the agent client beats the key name, and the key shows only when it adds something", () => {
+  const withAgent = cr({ sourceAttribution: { displayName: "Kelly Agent", channel: "cli", agent: { id: "codex", name: "Codex" } } });
+  assert.equal(Model.summaryOf(withAgent), "Codex added 3 records to Competitors");
+  assert.equal(Model.metaOf(withAgent, now), "1h ago · key Kelly Agent");
+
+  const keyIsAgent = cr({ sourceAttribution: { displayName: "Codex", channel: "cli", agent: { id: "codex", name: "Codex" } } });
+  assert.equal(Model.metaOf(keyIsAgent, now), "1h ago");
+
+  // Older servers send no agent: fall back to the key name and show the channel.
+  const legacy = cr({ sourceAttribution: { displayName: "Kelly Agent", channel: "openapi" } });
+  assert.equal(Model.summaryOf(legacy), "Kelly Agent added 3 records to Competitors");
+  assert.equal(Model.metaOf(legacy, now), "1h ago · openapi");
+});
