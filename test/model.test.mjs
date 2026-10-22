@@ -139,3 +139,19 @@ test("server-provided names are clipped before they reach the shell", () => {
   assert.equal(Model.clip(null), "");
 });
 
+
+test("a finished agent session is offered once, and only if it ran long enough", () => {
+  const t0 = 1_000_000;
+  const live = [
+    { pid: 11, agent: "codex", cwd: "/w/app", startedAt: t0 },
+    { pid: 12, agent: "claude", cwd: "/w/api", startedAt: t0 + 3000 },
+  ];
+  let state = Model.endedSessions({}, live, t0 + 3060, 10);
+  assert.equal(state.ended.length, 0); // first scan: nothing ended yet
+
+  // Both exit. Codex ran 51 min, Claude only 2 min.
+  state = Model.endedSessions(state.tracked, [], t0 + 3060 + 120 - 0, 10);
+  assert.deepEqual(plain(state.ended), [{ agent: "codex", cwd: "/w/app", startedAt: t0, minutes: 53 }]);
+  // Forgotten after that, so it is never offered twice.
+  assert.equal(Model.endedSessions(state.tracked, [], t0 + 9999, 10).ended.length, 0);
+});

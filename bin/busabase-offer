@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# busabase-offer — a Claude Code or Codex session just ended: offer to keep what
+# it found. One notification; clicking it hands the finished session back to
+# the same agent in the background, which saves what is worth keeping to
+# Busabase. Ignoring it does nothing.
+#
+# Usage: busabase-offer <agent> <cwd> <startedAt> <minutes>
+# Started detached by the widget, so it outlives a shell restart.
+set -uo pipefail
+
+PLUGIN_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+APP="Busabase"
+agent="${1:?}"
+cwd="${2:?}"
+since="${3:?}"
+minutes="${4:-0}"
+
+case "$agent" in claude) name="Claude Code" ;; codex) name="Codex" ;; *) exit 1 ;; esac
+[[ "$since" =~ ^[0-9]+$ && "$minutes" =~ ^[0-9]+$ ]] || exit 1
+
+session="$("$PLUGIN_BIN/busabase-sessions" resolve "$agent" "$cwd" "$since")" || exit 0
+[[ -n "$session" ]] || exit 0
+
+# Offer each session once, even if the widget restarts mid-way.
+umask 077
+dir="${XDG_RUNTIME_DIR:-/tmp}/busabase"
+mkdir -p "$dir" && chmod 700 "$dir"
+offered="$dir/offered"
+touch "$offered"
+grep -qxF "$session" "$offered" && exit 0
+echo "$session" >> "$offered"
+
+where="${cwd/#$HOME/\~}"
+# --wait keeps the libnotify action alive; Omarchy runs the "default" action on click.
+choice="$(notify-send -a "$APP" -i dialog-information -t 60000 --wait \
+  -A default="Keep it in Busabase" \
+  "$name session ended" \
+  "$minutes min in $where. Click to keep what it found in Busabase." 2>/dev/null)"
+[[ "$choice" == "default" ]] || exit 0
+
+notify-send -a "$APP" -i dialog-information "Keeping it" "$name is saving what's worth keeping from that session." >/dev/null 2>&1 || true
+if answer="$("$PLUGIN_BIN/busabase-agent" keep-session "$agent" "$session" "$cwd")"; then
+  notify-send -a "$APP" -i dialog-information "Kept in Busabase" "${answer:-Saved.}" >/dev/null 2>&1 || true
+else
+  notify-send -a "$APP" -i dialog-information "Couldn't keep it" "$name didn't finish. Nothing was saved." >/dev/null 2>&1 || true
+fi

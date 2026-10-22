@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# busabase-agent — hand a job to your coding agent in the background, the way
+# Omarchy runs agents unattended (Claude Code `--permission-mode auto`, Codex
+# `--approve-for-me`), and print its one-line answer.
+#
+# Usage:
+#   busabase-agent which                          print the agent this would use
+#   busabase-agent capture <file>                 file a captured note into Busabase
+#   busabase-agent keep-session <agent> <session> [cwd]
+#                                                 resume a finished session and keep
+#                                                 what is worth keeping
+#
+# What the agent is told is fixed text written here. Anything the person
+# captured stays in a private file (0600, in a 0700 runtime directory) and only
+# its path reaches the agent, so no captured text ever appears on a command line.
+#
+# Exit codes: 0 done (answer on stdout), 3 no agent available, 1 the agent failed.
+set -uo pipefail
+
+TIME_LIMIT="${BUSABASE_AGENT_TIMEOUT:-600}"
+ANSWER_CHARS=200
+SUPPORTED="claude codex"
+
+# Newest session file of each agent, as epoch seconds (0 if none).
+last_used() {
+  local dir
+  case "$1" in
+    claude) dir="$HOME/.claude/projects" ;;
+    codex) dir="$HOME/.codex/sessions" ;;
+    *) echo 0; return ;;
+  esac
+  find "$dir" -name '*.jsonl' -printf '%T@\n' 2>/dev/null | sort -rn | head -n 1 | cut -d. -f1 | grep . || echo 0
+}
+
+# Omarchy's default agent if it is one we can drive headless; otherwise the
+# supported agent you used most recently (an installed but never-used agent is
+# usually not signed in).
+pick_agent() {
+  local preferred=""
+  if command -v omarchy-default-agent >/dev/null 2>&1; then
+    preferred="$(omarchy-default-agent 2>/dev/null || true)"
+  fi
+  local by_recency
+  by_recency="$(for a in $SUPPORTED; do echo "$(last_used "$a") $a"; done | sort -rn | cut -d' ' -f2)"
+  local agent
+  for agent in $preferred $by_recency; do
+    case " $SUPPORTED " in *" $agent "*) ;; *) continue ;; esac
+    command -v "$agent" >/dev/null 2>&1 && { echo "$agent"; return 0; }
+  done
+  return 1
+}
+
+# Run $agent headless with the instruction on stdin; $2 optional session to resume.
+run_agent() {
+  local agent="$1" session="${2:-}" instruction="$3" answer_file out
+  answer_file="$(mktemp)"   # 0600
+  case "$agent" in
+    claude)
+      local args=(-p --permission-mode auto --output-format json)
+      [[ -n "$session" ]] && args+=(--resume "$session")
+      out="$(printf '%s' "$instruction" | timeout "$TIME_LIMIT" claude "${args[@]}" 2>/dev/null)" || { rm -f "$answer_file"; return 1; }
+      printf '%s' "$out" | jq -r '.result // empty' > "$answer_file" 2>/dev/null
+      ;;
+    codex)
+      if [[ -n "$session" ]]; then
+        printf '%s' "$instruction" | timeout "$TIME_LIMIT" codex exec --approve-for-me --skip-git-repo-check \
+          -o "$answer_file" resume "$session" - >/dev/null 2>&1 || { rm -f "$answer_file"; return 1; }
+      else
+        printf '%s' "$instruction" | timeout "$TIME_LIMIT" codex exec --approve-for-me --skip-git-repo-check \
+          -o "$answer_file" - >/dev/null 2>&1 || { rm -f "$answer_file"; return 1; }
+      fi
+      ;;
+    *) rm -f "$answer_file"; return 3 ;;
+  esac
+  # One line, bounded: it goes into a notification.
+  tr '\n' ' ' < "$answer_file" | sed -E 's/\]\([^)]*\)/]/g; s/https?:\/\/[^ )]+//g; s/  +/ /g' | head -c "$ANSWER_CHARS"
+  rm -f "$answer_file"
+  return 0
+}
+
+CAPTURE_INSTRUCTION='Use the busabase skill. The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Never delete or overwrite anything. Then reply with one short sentence saying what you saved and where, without links.
+
+Note file: '
+
+KEEP_INSTRUCTION='This coding session is over. Use the busabase skill to keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing. Then reply with one short sentence saying what you saved and where, without links.'
+
+case "${1:-}" in
+  which)
+    pick_agent || exit 3
+    ;;
+  capture)
+    file="${2:?usage: busabase-agent capture <file>}"
+    [[ -r "$file" ]] || { echo "busabase-agent: cannot read $file" >&2; exit 1; }
+    agent="$(pick_agent)" || { echo "busabase-agent: no supported agent (claude or codex) is installed" >&2; exit 3; }
+    run_agent "$agent" "" "${CAPTURE_INSTRUCTION}${file}"
+    ;;
+  keep-session)
+    agent="${2:?usage: busabase-agent keep-session <agent> <session> [cwd]}"
+    session="${3:?usage: busabase-agent keep-session <agent> <session> [cwd]}"
+    cwd="${4:-}"
+    case " $SUPPORTED " in *" $agent "*) ;; *) echo "busabase-agent: $agent is not supported" >&2; exit 3 ;; esac
+    command -v "$agent" >/dev/null 2>&1 || { echo "busabase-agent: $agent is not installed" >&2; exit 3; }
+    [[ "$session" =~ ^[A-Za-z0-9-]{8,64}$ ]] || { echo "busabase-agent: bad session id" >&2; exit 1; }
+    # Resume where the session ran, so the agent sees the same project.
+    if [[ -n "$cwd" && -d "$cwd" ]]; then cd "$cwd" || exit 1; fi
+    run_agent "$agent" "$session" "$KEEP_INSTRUCTION"
+    ;;
+  *)
+    echo "usage: busabase-agent which | capture <file> | keep-session <agent> <session> [cwd]" >&2
+    exit 1
+    ;;
+esac

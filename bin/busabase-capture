@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# busabase-capture — keep whatever you just selected (or copied): your coding
+# agent files it into Busabase in the background and tells you where it went.
+#
+# Bound to a key with `omarchy-shell busabase capture` (see README). The text is
+# read once, capped, and written to a private file; it is never put on a
+# command line, and the file is removed when the agent is done.
+set -uo pipefail
+
+PLUGIN_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+MAX_BYTES=$((64 * 1024))
+APP="Busabase"
+
+notify() { notify-send -a "$APP" -i dialog-information "$1" "${2:-}" >/dev/null 2>&1 || true; }
+
+# Primary selection first (what you just highlighted), then the clipboard.
+# Text only: images and files are left alone. Capped before it touches disk.
+grab() {
+  local source
+  for source in --primary ""; do
+    # shellcheck disable=SC2086
+    if wl-paste $source --list-types 2>/dev/null | grep -qE '^text/plain|^UTF8_STRING$|^TEXT$|^STRING$'; then
+      # shellcheck disable=SC2086
+      wl-paste $source --no-newline --type text/plain 2>/dev/null | head -c "$MAX_BYTES" && return 0
+    fi
+  done
+  return 1
+}
+
+umask 077
+dir="${XDG_RUNTIME_DIR:-/tmp}/busabase"
+mkdir -p "$dir" && chmod 700 "$dir"
+note="$(mktemp "$dir/capture-XXXXXX.md")"
+trap 'rm -f "$note"' EXIT
+
+if ! grab > "$note" || [[ ! -s "$note" ]] || ! grep -q '[^[:space:]]' "$note"; then
+  notify "Nothing to keep" "Select or copy some text first, then press the key again."
+  exit 0
+fi
+
+agent="$("$PLUGIN_BIN/busabase-agent" which)" || {
+  notify "No agent to file it" "Install Claude Code or Codex, or pick one: omarchy default agent codex"
+  exit 0
+}
+
+bytes=$(stat -c %s "$note")
+notify "Keeping it" "$agent is filing $bytes bytes into Busabase."
+
+if answer="$("$PLUGIN_BIN/busabase-agent" capture "$note")"; then
+  notify "Kept in Busabase" "${answer:-Saved.}"
+else
+  notify "Couldn't keep it" "$agent didn't finish. Nothing was saved."
+fi

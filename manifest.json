@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "busabase",
   "name": "Busabase",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "author": "Busabase",
   "license": "MIT",
   "description": "Your agents' work, kept. See what Claude Code and Codex saved to Busabase today, with a +1 in the bar as it lands, and teach your agents Busabase in one switch. Cloud or local.",
@@ -19,7 +19,9 @@
     "defaultSection": "right",
     "defaults": {
       "refreshIntervalSec": 60,
-      "showCount": true
+      "showCount": true,
+      "keepSessions": false,
+      "keepSessionsMinMinutes": 10
     },
     "schema": [
       {
@@ -36,6 +38,21 @@
         "type": "boolean",
         "label": "Show today's kept count next to the icon",
         "defaultValue": true
+      },
+      {
+        "key": "keepSessions",
+        "type": "boolean",
+        "label": "Offer to keep finished Claude Code / Codex sessions in Busabase",
+        "defaultValue": false
+      },
+      {
+        "key": "keepSessionsMinMinutes",
+        "type": "integer",
+        "label": "Only offer for sessions at least this long (minutes)",
+        "min": 0,
+        "max": 240,
+        "step": 5,
+        "defaultValue": 10
       }
     ]
   }

@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# busabase-sessions — notice when an interactive Claude Code or Codex session
+# ends, so the widget can offer to keep what it found.
+#
+# Usage:
+#   busabase-sessions live
+#       JSON array of interactive agent sessions running now:
+#       [{"pid":123,"agent":"codex","cwd":"/home/me/app","startedAt":1700000000}]
+#       Only processes attached to a terminal count: background runs (including
+#       the ones this plugin starts) and app-server daemons are ignored.
+#   busabase-sessions resolve <agent> <cwd> <startedAt>
+#       Print the id of the session that agent wrote in <cwd> since <startedAt>
+#       (epoch seconds), newest first; nothing if none.
+#
+# Reads only /proc and the agents' own session files (names, timestamps, and
+# Codex's first metadata line). Never reads conversation content.
+set -uo pipefail
+
+boot_epoch() { echo $(( $(date +%s) - $(cut -d. -f1 /proc/uptime) )); }
+
+live() {
+  local boot ticks first=1 pid comm tty start cwd agent
+  boot=$(boot_epoch)
+  ticks=$(getconf CLK_TCK)
+  printf '['
+  for pid in $(pgrep -u "$(id -u)" -x 'claude|codex' 2>/dev/null); do
+    comm=$(cat "/proc/$pid/comm" 2>/dev/null) || continue
+    case "$comm" in claude|codex) agent="$comm" ;; *) continue ;; esac
+    # Field 7 is tty_nr; 0 means no controlling terminal (a background run).
+    # The comm field may contain spaces, so split after its closing paren.
+    local stat rest
+    stat=$(cat "/proc/$pid/stat" 2>/dev/null) || continue
+    rest=${stat##*) }
+    read -r _ _ _ _ tty _ <<<"$rest"
+    [[ "$tty" == "0" ]] && continue
+    # Skip daemons and headless runs even if they inherited a terminal.
+    if tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qE ' (app-server|exec|mcp-server)( |$)| (-p|--print)( |$)'; then
+      continue
+    fi
+    start=$(awk '{print $20}' <<<"$rest")
+    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+    [[ $first -eq 1 ]] || printf ','
+    first=0
+    printf '{"pid":%s,"agent":"%s","cwd":%s,"startedAt":%s}' \
+      "$pid" "$agent" "$(jq -Rn --arg v "$cwd" '$v')" "$(( boot + start / ticks ))"
+  done
+  printf ']\n'
+}
+
+resolve_codex() {
+  local cwd="$1" since="$2" file id meta_cwd
+  # Newest first; only files touched since the session started.
+  while IFS= read -r file; do
+    meta_cwd=$(head -n 1 "$file" 2>/dev/null | head -c 65536 | jq -r '.payload.cwd // empty' 2>/dev/null)
+    [[ "$meta_cwd" == "$cwd" ]] || continue
+    id=$(basename "$file" .jsonl)
+    id=${id: -36}
+    [[ "$id" =~ ^[0-9a-f-]{36}$ ]] && { echo "$id"; return 0; }
+  done < <(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt "@$since" -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-)
+  return 1
+}
+
+resolve_claude() {
+  local cwd="$1" since="$2" dir file id
+  # Claude Code keeps a project's sessions in ~/.claude/projects/<cwd, / and . as ->/.
+  dir="$HOME/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$cwd")"
+  [[ -d "$dir" ]] || return 1
+  while IFS= read -r file; do
+    id=$(basename "$file" .jsonl)
+    [[ "$id" =~ ^[0-9a-f-]{36}$ ]] && { echo "$id"; return 0; }
+  done < <(find "$dir" -maxdepth 1 -name '*.jsonl' -newermt "@$since" -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-)
+  return 1
+}
+
+case "${1:-}" in
+  live) live ;;
+  resolve)
+    agent="${2:?usage: busabase-sessions resolve <agent> <cwd> <startedAt>}"
+    cwd="${3:?}"
+    since="${4:?}"
+    [[ "$since" =~ ^[0-9]+$ ]] || exit 1
+    case "$agent" in
+      codex) resolve_codex "$cwd" "$since" ;;
+      claude) resolve_claude "$cwd" "$since" ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  *) echo "usage: busabase-sessions live | resolve <agent> <cwd> <startedAt>" >&2; exit 1 ;;
+esac

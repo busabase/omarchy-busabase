@@ -272,3 +272,28 @@ function statusLine(status, kind) {
   if (status === "error") return "Something went wrong — press r to retry"
   return ""
 }
+
+// Session watching. `tracked` maps pid → {agent, cwd, startedAt} from the
+// previous scan; `live` is this scan. A session ends when its pid disappears;
+// only sessions that ran at least `minMinutes` are worth an offer (a quick
+// question to an agent is not work to keep).
+function endedSessions(tracked, live, nowSec, minMinutes) {
+  var next = {}
+  var stillHere = {}
+  var list = live || []
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i]
+    if (!s || !s.pid) continue
+    stillHere[s.pid] = true
+    next[s.pid] = { agent: String(s.agent), cwd: String(s.cwd), startedAt: Number(s.startedAt) || 0 }
+  }
+  var ended = []
+  var min = Math.max(0, Number(minMinutes) || 0)
+  for (var pid in (tracked || {})) {
+    if (stillHere[pid]) continue
+    var t = tracked[pid]
+    var minutes = Math.floor((nowSec - t.startedAt) / 60)
+    if (t.startedAt > 0 && minutes >= min) ended.push({ agent: t.agent, cwd: t.cwd, startedAt: t.startedAt, minutes: minutes })
+  }
+  return { tracked: next, ended: ended }
+}

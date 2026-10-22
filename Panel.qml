@@ -70,6 +70,13 @@ Panel {
                  meta: s.inboxCount > 0 ? s.inboxCount + " in the space's review inbox" : "", act: "dashboard" })
     }
     out.push({ key: "skills", icon: "", title: "Teach my agents Busabase", meta: root.skillsMeta, act: "skills" })
+    if (s.connected) {
+      out.push({ key: "capture", icon: "\uf0c5", title: "Keep what I selected",
+                 meta: "Your agent files it in Busabase · bind Super+Alt+B, see README", act: "capture" })
+      out.push({ key: "sessions", icon: "\uf017", title: "Offer to keep finished sessions",
+                 meta: s.keepSessions ? "On · asks after Claude Code or Codex sessions of " + s.keepSessionsMinMinutes + "+ min"
+                                      : "Off · when an agent session ends, one click saves what it found", act: "sessions" })
+    }
     return out
   }
 
@@ -92,6 +99,11 @@ Panel {
     else if (row.act === "inbox") service.openInbox()
     else if (row.act === "change") service.openChange(row.cr)
     else if (row.act === "dashboard") service.openDashboard()
+    else if (row.act === "capture") service.capture()
+    else if (row.act === "sessions") {
+      service.setSetting("keepSessions", !service.keepSessions)
+      return
+    }
     else if (row.act === "skills") {
       if (service.skillsState !== "yours") service.setSkillsLinked(!root.skillsOn)
       return
@@ -118,6 +130,8 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { if (root.opened) root.close(); else root.openFromHotkey() }
     function refresh(): string { if (root.service) root.service.refresh(); return "ok" }
+    // Bind a key to this: omarchy-shell busabase capture
+    function capture(): string { if (root.service) root.service.capture(); return "ok" }
     // One line for scripts and remote debugging; never includes the key.
     function status(): string {
       var s = root.service
@@ -244,6 +258,7 @@ Panel {
     property var row: null
     property int rowIndex: 0
     readonly property bool isSkills: row && row.key === "skills"
+    readonly property bool isSessions: row && row.key === "sessions"
 
     hasCursor: root.cursor === rowIndex
     foreground: root.foreground
@@ -304,6 +319,14 @@ Panel {
           maximumLineCount: 2
           elide: Text.ElideRight
         }
+      }
+
+      ToggleSwitch {
+        visible: rowItem.isSessions
+        checked: !!root.service && root.service.keepSessions
+        foreground: root.foreground
+        Layout.alignment: Qt.AlignVCenter
+        onToggled: root.activate(rowItem.row)
       }
 
       ToggleSwitch {

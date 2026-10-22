@@ -59,6 +59,29 @@ Busabase."* When it lands, the bar flashes `+1`, and the panel lists it:
 
 ![The panel: today's count, a change waiting for review, and what your agents kept](assets/panel.png)
 
+## Keep things without asking an agent first
+
+**Keep what you selected.** Highlight any text (or copy it) and press your key:
+your coding agent reads it and files it in the right place in Busabase, in the
+background. A toast says *Keeping it*, then where it went. Bind it in
+`~/.config/hypr/bindings.lua` (Super + Alt + B is free on a stock Omarchy):
+
+```lua
+o.bind("SUPER + ALT + B", "Keep selection in Busabase", "omarchy-shell busabase capture")
+```
+
+Or click *Keep what I selected* in the panel.
+
+**Offer to keep finished sessions** (off by default; switch it on in the panel).
+When an interactive Claude Code or Codex session that ran for 10+ minutes ends,
+one toast asks whether to keep what it found. Click it and the same agent resumes
+that session in the background and saves what is worth keeping; ignore it and
+nothing happens. Each session is offered once.
+
+Both use Omarchy's default agent if it is Claude Code or Codex, otherwise the
+one you used most recently, run unattended the way Omarchy runs them
+(`--permission-mode auto` / `--approve-for-me`).
+
 ## Keys
 
 | Key | Action |
@@ -88,11 +111,21 @@ Plugins run unsandboxed as your user, so here is the full list.
   computer* (it sets `BUSABASE_BASE_URL`), and symlinks in your agents' skill
   folders only when you switch the skill on. It never overwrites a skill you
   installed yourself.
+- **Keeping a selection** reads the primary selection or clipboard once (text
+  only, capped at 64 KB) into a private file (0600 in a 0700 directory under
+  `$XDG_RUNTIME_DIR`), gives your agent only that file's path, and deletes it
+  when the agent is done. Captured text never appears on a command line.
+- **Offering to keep sessions** (only when switched on) reads `/proc` every 15
+  seconds to see which interactive `claude` / `codex` processes are running and
+  in which directory, and the agents' session file names and timestamps (plus
+  the first metadata line of a Codex session) to find the session that ended. It
+  never reads conversation content; the agent does that itself, after you click.
 - **Never** runs an installer, asks for root or administrator rights, or
   downloads code — except the pinned `npx busabase-cli@0.97.0 login` fallback,
   which only runs when you click *Sign in* and `busabase-cli` is missing.
 
-Dependencies: `bash` and `curl`, both in Omarchy.
+Dependencies: `bash`, `curl`, `jq`, `wl-clipboard` and `notify-send`, all in
+Omarchy; Claude Code or Codex for the two "keep" features.
 
 ## Uninstall
 
