@@ -5,7 +5,8 @@
 # Usage:
 #   busabase-sessions live
 #       JSON array of interactive agent sessions running now:
-#       [{"pid":123,"agent":"codex","cwd":"/home/me/app","startedAt":1700000000}]
+#       [{"pid":123,"agent":"codex","cwd":"/home/me/app","startedAt":1700000000,"sessionId":""}]
+#       (sessionId is filled for Claude Code, which records it per process)
 #       Only processes attached to a terminal count: background runs (including
 #       the ones this plugin starts) and app-server daemons are ignored.
 #   busabase-sessions resolve <agent> <cwd> <startedAt>
@@ -39,10 +40,18 @@ live() {
     fi
     start=$(awk '{print $20}' <<<"$rest")
     cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+    # Claude Code records each process's session in ~/.claude/sessions/<pid>.json
+    # (metadata only: id, cwd, status). That gives the exact session; Codex has
+    # no equivalent, so its session is resolved by directory after it ends.
+    local session=""
+    if [[ "$agent" == "claude" && -r "$HOME/.claude/sessions/$pid.json" ]]; then
+      session=$(head -c 65536 "$HOME/.claude/sessions/$pid.json" | jq -r --argjson pid "$pid" 'select(.pid == $pid) | .sessionId // empty' 2>/dev/null)
+      [[ "$session" =~ ^[0-9a-f-]{36}$ ]] || session=""
+    fi
     [[ $first -eq 1 ]] || printf ','
     first=0
-    printf '{"pid":%s,"agent":"%s","cwd":%s,"startedAt":%s}' \
-      "$pid" "$agent" "$(jq -Rn --arg v "$cwd" '$v')" "$(( boot + start / ticks ))"
+    printf '{"pid":%s,"agent":"%s","cwd":%s,"startedAt":%s,"sessionId":"%s"}' \
+      "$pid" "$agent" "$(jq -Rn --arg v "$cwd" '$v')" "$(( boot + start / ticks ))" "$session"
   done
   printf ']\n'
 }

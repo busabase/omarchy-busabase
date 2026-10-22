@@ -273,6 +273,12 @@ function statusLine(status, kind) {
   return ""
 }
 
+function sameAgentStillIn(live, agent, cwd) {
+  for (var i = 0; i < live.length; i++)
+    if (live[i] && live[i].agent === agent && live[i].cwd === cwd) return true
+  return false
+}
+
 // Session watching. `tracked` maps pid → {agent, cwd, startedAt} from the
 // previous scan; `live` is this scan. A session ends when its pid disappears;
 // only sessions that ran at least `minMinutes` are worth an offer (a quick
@@ -285,7 +291,8 @@ function endedSessions(tracked, live, nowSec, minMinutes) {
     var s = list[i]
     if (!s || !s.pid) continue
     stillHere[s.pid] = true
-    next[s.pid] = { agent: String(s.agent), cwd: String(s.cwd), startedAt: Number(s.startedAt) || 0 }
+    next[s.pid] = { agent: String(s.agent), cwd: String(s.cwd), startedAt: Number(s.startedAt) || 0,
+                    sessionId: s.sessionId ? String(s.sessionId) : "" }
   }
   var ended = []
   var min = Math.max(0, Number(minMinutes) || 0)
@@ -293,7 +300,12 @@ function endedSessions(tracked, live, nowSec, minMinutes) {
     if (stillHere[pid]) continue
     var t = tracked[pid]
     var minutes = Math.floor((nowSec - t.startedAt) / 60)
-    if (t.startedAt > 0 && minutes >= min) ended.push({ agent: t.agent, cwd: t.cwd, startedAt: t.startedAt, minutes: minutes })
+    if (!(t.startedAt > 0 && minutes >= min)) continue
+    // Without an exact session id (Codex), the session is found by directory
+    // afterwards — ambiguous while another session of that agent still runs
+    // there, so skip rather than risk keeping the wrong conversation.
+    if (!t.sessionId && sameAgentStillIn(list, t.agent, t.cwd)) continue
+    ended.push({ agent: t.agent, cwd: t.cwd, startedAt: t.startedAt, minutes: minutes, sessionId: t.sessionId || "" })
   }
   return { tracked: next, ended: ended }
 }

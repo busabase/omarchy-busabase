@@ -324,7 +324,7 @@ Item {
       root._trackedSessions = result.tracked
       for (var i = 0; i < result.ended.length; i++) {
         var e = result.ended[i]
-        Quickshell.execDetached([root.offerPath, e.agent, e.cwd, String(e.startedAt), String(e.minutes)])
+        Quickshell.execDetached([root.offerPath, e.agent, e.cwd, String(e.startedAt), String(e.minutes), e.sessionId])
       }
     }
   }

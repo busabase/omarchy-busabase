@@ -151,7 +151,28 @@ test("a finished agent session is offered once, and only if it ran long enough",
 
   // Both exit. Codex ran 51 min, Claude only 2 min.
   state = Model.endedSessions(state.tracked, [], t0 + 3060 + 120 - 0, 10);
-  assert.deepEqual(plain(state.ended), [{ agent: "codex", cwd: "/w/app", startedAt: t0, minutes: 53 }]);
+  assert.deepEqual(plain(state.ended), [{ agent: "codex", cwd: "/w/app", startedAt: t0, minutes: 53, sessionId: "" }]);
   // Forgotten after that, so it is never offered twice.
   assert.equal(Model.endedSessions(state.tracked, [], t0 + 9999, 10).ended.length, 0);
 });
+
+test("an exact session id is carried through; a Codex session sharing its directory is not guessed", () => {
+  const t0 = 2_000_000;
+  const start = [
+    { pid: 21, agent: "claude", cwd: "/w/app", startedAt: t0, sessionId: "aaaaaaaa-1111-2222-3333-444444444444" },
+    { pid: 22, agent: "claude", cwd: "/w/app", startedAt: t0 },
+    { pid: 31, agent: "codex", cwd: "/w/api", startedAt: t0 },
+    { pid: 32, agent: "codex", cwd: "/w/api", startedAt: t0 },
+  ];
+  const later = t0 + 3600;
+  let state = Model.endedSessions({}, start, later, 10);
+  // Claude 21 and Codex 31 end; their siblings in the same directories keep running.
+  state = Model.endedSessions(state.tracked, [start[1], start[3]], later, 10);
+  assert.deepEqual(plain(state.ended), [
+    { agent: "claude", cwd: "/w/app", startedAt: t0, minutes: 60, sessionId: "aaaaaaaa-1111-2222-3333-444444444444" },
+  ]);
+  // Once the last Codex in /w/api ends, it is offered (resolved by directory).
+  state = Model.endedSessions(state.tracked, [start[1]], later, 10);
+  assert.deepEqual(plain(state.ended.map((e) => e.agent + ":" + e.cwd)), ["codex:/w/api"]);
+});
+

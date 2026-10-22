@@ -4,7 +4,8 @@
 # the same agent in the background, which saves what is worth keeping to
 # Busabase. Ignoring it does nothing.
 #
-# Usage: busabase-offer <agent> <cwd> <startedAt> <minutes>
+# Usage: busabase-offer <agent> <cwd> <startedAt> <minutes> [sessionId]
+#   sessionId is known for Claude Code; for Codex it is resolved by directory.
 # Started detached by the widget, so it outlives a shell restart.
 set -uo pipefail
 
@@ -14,12 +15,17 @@ agent="${1:?}"
 cwd="${2:?}"
 since="${3:?}"
 minutes="${4:-0}"
+known="${5:-}"
 
 case "$agent" in claude) name="Claude Code" ;; codex) name="Codex" ;; *) exit 1 ;; esac
 [[ "$since" =~ ^[0-9]+$ && "$minutes" =~ ^[0-9]+$ ]] || exit 1
 
-session="$("$PLUGIN_BIN/busabase-sessions" resolve "$agent" "$cwd" "$since")" || exit 0
-[[ -n "$session" ]] || exit 0
+if [[ -n "$known" ]]; then
+  session="$known"
+else
+  session="$("$PLUGIN_BIN/busabase-sessions" resolve "$agent" "$cwd" "$since")" || exit 0
+fi
+[[ "$session" =~ ^[A-Za-z0-9-]{8,64}$ ]] || exit 0
 
 # Offer each session once, even if the widget restarts mid-way.
 umask 077
