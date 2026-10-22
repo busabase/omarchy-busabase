@@ -53,6 +53,11 @@ json_escape() {
   printf '%s' "$s"
 }
 
+# Private scratch space: the per-user runtime dir (0700) when there is one, so
+# the key-bearing curl config never sits in a shared /tmp.
+TMP_DIR="${XDG_RUNTIME_DIR:-}"
+[[ -n "$TMP_DIR" && -d "$TMP_DIR" && -O "$TMP_DIR" ]] || TMP_DIR="${TMPDIR:-/tmp}"
+
 CURL_CFG=""
 BODY_FILE=""
 OUT_FILE=""
@@ -70,8 +75,8 @@ ERROR_CHARS=300
 # the response body; exits with the codes above on failure.
 request() {
   local method="$1" url="$2" status curl_exit
-  CURL_CFG=$(mktemp)   # mktemp creates 0600
-  OUT_FILE=$(mktemp)   # 0600
+  CURL_CFG=$(mktemp -p "$TMP_DIR")   # mktemp creates 0600
+  OUT_FILE=$(mktemp -p "$TMP_DIR")   # 0600
   if [[ -n "$API_KEY" ]]; then
     printf 'header = "Authorization: Bearer %s"\n' "$API_KEY" >> "$CURL_CFG"
   fi
@@ -79,7 +84,7 @@ request() {
     printf 'header = "x-busabase-space: %s"\n' "$SPACE_ID" >> "$CURL_CFG"
   fi
   if [[ "$method" != "GET" && ! -t 0 ]]; then
-    BODY_FILE=$(mktemp)   # 0600
+    BODY_FILE=$(mktemp -p "$TMP_DIR")   # 0600
     head -c "$MAX_BYTES" > "$BODY_FILE"
     [[ -s "$BODY_FILE" ]] || { rm -f "$BODY_FILE"; BODY_FILE=""; }
   fi

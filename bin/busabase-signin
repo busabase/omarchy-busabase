@@ -26,5 +26,5 @@ if command -v busabase-cli >/dev/null 2>&1; then
 fi
 # Pinned: npm versions are immutable, so this runs exactly the reviewed release.
 # Bump deliberately with the plugin, never float to @latest.
-BUSABASE_CLI_VERSION="0.97.0"
+BUSABASE_CLI_VERSION="0.98.0"
 exec npx -y "busabase-cli@${BUSABASE_CLI_VERSION}" login

@@ -22,7 +22,7 @@ they cannot approve what they never saw, and the login silently times out. So sp
 
 ```bash
 # Turn 1 — start. Returns immediately; writes NO credential:
-npm exec -y --package busabase-cli@latest -- busabase-cli login --no-wait --output json
+npx --yes busabase-cli@0.98.0 login --no-wait --output json
 # → { "verification_url": "...", "user_code": "...", "resume_code": "...", "expires_in": "900", "hint": "..." }
 ```
 
@@ -37,7 +37,7 @@ Then, in this order:
 
 ```bash
 # Turn 2 — after the user says they approved (keep the same --base-url/--profile flags):
-npm exec -y --package busabase-cli@latest -- busabase-cli login --resume-code <resume_code>
+npx --yes busabase-cli@0.98.0 login --resume-code <resume_code>
 ```
 
 Rules that prevent the classic failures:
