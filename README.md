@@ -2,17 +2,22 @@
 
 **Your agents' work, kept.**
 
+![Codex saves a record to Busabase; the Omarchy bar counts it and the panel lists what your agents kept today](preview.png)
+
 Claude Code and Codex do real work — research, lists, decisions — and it usually
 evaporates when the session closes. With [Busabase](https://busabase.com) your
 agents save that work into a database and knowledge base you own. This widget
-puts it in your Omarchy bar:
+puts it in your Omarchy bar.
 
 - **Today's count, with a `+1` as it lands.** When an agent saves something, the
-  number ticks up and a small `+1` floats off it. No toast, no sound — work your
+  count flashes `+1` and settles on the new total. No toast, no sound — work your
   agents do on their own should be visible, not interrupting.
-- **What was kept, in plain words.** Open the panel: *"Claude Code added 3 records
-  to Competitors · 5m ago"*. Enter opens it in Busabase, with the full history and
-  one-click revert.
+
+  ![The bar goes 1, +1, 2 as an agent saves a record](assets/plus-one.png)
+
+- **What was kept, in plain words.** Open the panel: *"Codex added 1 record to
+  Bugs · 5m ago"* — named after the agent client, or the API key it used. Enter
+  opens it in Busabase, with the full history and one-click revert.
 - **A dot only when something waits for you.** If one of your changes is queued
   for review (a proposal-only key, or a Base that asks for review), the mark gets
   an accent dot. Otherwise there is nothing to clear.
@@ -28,16 +33,31 @@ puts it in your Omarchy bar:
 omarchy plugin add https://github.com/busabase/omarchy-busabase.git --enable
 ```
 
-Then click the Busabase mark in the bar:
+The Busabase mark appears on the right of your bar. Dimmed means not connected
+yet — click it:
 
-- **Sign in to Busabase** opens a terminal running `busabase-cli login`; approve
-  the short code in your browser. If `busabase-cli` is not installed it runs via
-  `npx`, which needs Node.js.
-- **Use Busabase on this computer** appears when a local server answers on
-  `localhost:15419`.
+![The panel before signing in: Sign in to Busabase, and Teach my agents Busabase](assets/signed-out.png)
 
-Already signed in with `busabase-cli`? There is nothing to do: the widget reads
-the same `~/.busabase/.env`.
+**1. Sign in.** *Sign in to Busabase* opens Omarchy's terminal with
+`busabase-cli login`. Press Enter for Busabase Cloud, then approve the short code
+in your browser. (It runs `busabase-cli` if installed, otherwise
+`npx busabase-cli@latest`, which needs Node.js — Omarchy ships it via mise.)
+
+![The sign-in terminal: the Omarchy and Busabase logos, then busabase-cli login](assets/sign-in.png)
+
+Already signed in with `busabase-cli`? Nothing to do: the widget reads the same
+`~/.busabase/.env`. Running Busabase locally? *Use Busabase on this computer*
+appears when a server answers on `localhost:15419`.
+
+**2. Teach your agents.** Switch on *Teach my agents Busabase*. Restart any agent
+that is already open so it picks up the skill.
+
+![The skill switch, on for Claude Code, Codex and Pi](assets/skills-on.png)
+
+**3. Ask an agent to keep something.** *"Save this week's competitor notes to
+Busabase."* When it lands, the bar flashes `+1`, and the panel lists it:
+
+![The panel: today's count, a change waiting for review, and what your agents kept](assets/panel.png)
 
 ## Keys
 
@@ -66,8 +86,8 @@ Plugins run unsandboxed as your user, so here is the full list.
   folders only when you switch the skill on. It never overwrites a skill you
   installed yourself.
 - **Never** runs an installer, uses `sudo`, or downloads code — except the
-  `npx busabase-cli login` fallback, which only runs when you click *Sign in* and
-  `busabase-cli` is missing.
+  `npx busabase-cli@latest login` fallback, which only runs when you click
+  *Sign in* and `busabase-cli` is missing.
 
 Dependencies: `bash` and `curl`, both in Omarchy.
 
