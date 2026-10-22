@@ -184,3 +184,13 @@ test("a setting of 0 minutes stays 0", () => {
   assert.equal(Model.intSetting(5, 60, 15, 3600), 15);
 });
 
+test("a folder the change created is named from its commit, not 'your workspace'", () => {
+  const folder = cr({
+    base: null,
+    node: null,
+    sourceAttribution: { displayName: "Kelly Agent", channel: "cli" },
+    primaryOperation: { operation: "node_create", headCommit: { payload: { kind: "create", name: "Omarchy Launch Week" } } },
+  });
+  assert.equal(Model.summaryOf(folder), "Kelly Agent created Omarchy Launch Week");
+});
+

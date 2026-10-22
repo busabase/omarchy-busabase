@@ -205,6 +205,10 @@ function metaOf(cr, nowMs) {
 function targetOf(cr) {
   if (cr && cr.base && cr.base.name) return clip(cr.base.name)
   if (cr && cr.node && cr.node.name) return clip(cr.node.name)
+  // A node the change itself created (a folder, a doc) is not hydrated on the
+  // change request yet; its name is in the operation's own commit.
+  var payload = cr && cr.primaryOperation && cr.primaryOperation.headCommit && cr.primaryOperation.headCommit.payload
+  if (payload && payload.name) return clip(payload.name)
   return "your workspace"
 }
 
