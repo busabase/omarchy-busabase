@@ -2,7 +2,7 @@
 
 **Your agents' work, kept.**
 
-![Codex saves a record to Busabase; the Omarchy bar counts it and the panel lists what your agents kept today](preview.png)
+![Codex saves three competitors to Busabase in a terminal; the Omarchy bar counts what Codex and Claude Code kept today](preview.png)
 
 Claude Code and Codex do real work — research, lists, decisions — and it usually
 evaporates when the session closes. With [Busabase](https://busabase.com) your
@@ -13,7 +13,7 @@ puts it in your Omarchy bar.
   count flashes `+1` and settles on the new total. No toast, no sound — work your
   agents do on their own should be visible, not interrupting.
 
-  ![The bar goes 1, +1, 2 as an agent saves a record](assets/plus-one.png)
+  ![The bar goes 5, +1, 6 as an agent saves a record](assets/plus-one.gif)
 
 - **What was kept, in plain words.** Open the panel: *"Codex added 1 record to
   Bugs · 5m ago"* — named after the agent client, or the API key it used. Enter
@@ -26,6 +26,9 @@ puts it in your Omarchy bar.
   places Omarchy links its own skill. Switch it off and the links are gone.
 - **Cloud or local.** Works with Busabase Cloud, a self-hosted server, or the open
   source server on your own machine (`busabase server`, no account needed).
+- **Wears every Omarchy theme.** Colors come from your theme, light or dark.
+
+  ![The panel in Tokyo Night, Catppuccin Latte, Gruvbox and Rose Pine](assets/themes.png)
 
 ## Install
 
@@ -57,7 +60,7 @@ that is already open so it picks up the skill.
 **3. Ask an agent to keep something.** *"Save this week's competitor notes to
 Busabase."* When it lands, the bar flashes `+1`, and the panel lists it:
 
-![The panel: today's count, a change waiting for review, and what your agents kept](assets/panel.png)
+![The panel: what Codex and Claude Code kept today, each named after the agent that saved it](assets/panel.png)
 
 ## Keys
 
