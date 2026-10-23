@@ -136,6 +136,9 @@ Item {
   function refresh() {
     if (refreshing) return
     refreshing = true
+    // An agent installed or removed since the last look changes what the
+    // switch should say, so re-read the links on every refresh too.
+    if (!skillsProc.running) loadSkills()
     nowMs = Date.now()
     connectionProc.call(["connection"], function(code, out) {
       var c = Model.parseJson(out, {})
