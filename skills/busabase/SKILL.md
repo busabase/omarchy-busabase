@@ -100,7 +100,8 @@ On Cloud, confirm the target space before the first write of a session — full 
 
 1. **`busabase-cli`** — the everyday loop. Auto-loads `~/.busabase/.env`; add `--output json` to
    parse. `npx --yes busabase-cli@0.98.0 --help` lists commands.
-2. **`curl`** — zero install. On Cloud add `Authorization: Bearer` + `x-busabase-space` headers.
+2. **`curl`** — zero install, for open servers (Desktop/local). On Cloud use `busabase-cli api`
+   instead: an API key on a command line is visible to every user on the machine.
 3. **OpenAPI / MCP** — the complete live surface: `$BUSABASE_BASE_URL/api/v1/openapi.json`
    (browsable at `/api/v1/doc`), or MCP at `$BUSABASE_BASE_URL/api/mcp`.
 

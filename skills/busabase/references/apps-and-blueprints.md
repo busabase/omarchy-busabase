@@ -14,7 +14,7 @@ what tells you a folder's Bases are an app's schema rather than someone's own ta
 
 ```bash
 # Which folders here are installed apps: skill nodes whose metadata.isTemplateSkill is true
-curl -s "$BUSABASE_BASE_URL/api/v1/nodes" -H "Authorization: Bearer $BUSABASE_API_KEY" \
+busabase-cli api --method get --path /api/v1/nodes --output json \
   | jq '.. | objects | select(.type=="skill" and .metadata.isTemplateSkill==true)
         | {id, slug, appId: .metadata.appId}'
 ```
@@ -22,11 +22,11 @@ curl -s "$BUSABASE_BASE_URL/api/v1/nodes" -H "Authorization: Bearer $BUSABASE_AP
 Then read the manual, and any reference files beside it:
 
 ```bash
-curl -s "$BUSABASE_BASE_URL/api/v1/file-trees/<nodeId>/files?type=skill" \
-  -H "Authorization: Bearer $BUSABASE_API_KEY" | jq '.[].path'
+busabase-cli api --method get --path "/api/v1/file-trees/<nodeId>/files" \
+  --query type=skill --output json | jq '.[].path'
 
-curl -s "$BUSABASE_BASE_URL/api/v1/file-trees/<nodeId>/files/SKILL.md?type=skill" \
-  -H "Authorization: Bearer $BUSABASE_API_KEY" | jq -r .content
+busabase-cli api --method get --path "/api/v1/file-trees/<nodeId>/files/SKILL.md" \
+  --query type=skill --output json | jq -r .content
 ```
 
 The manual also tells you how to look the app's tables up. An app addresses its own resources by
