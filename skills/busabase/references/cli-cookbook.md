@@ -111,16 +111,14 @@ npx --yes busabase-cli@0.98.0 change-requests close --change-request-id <id> --r
 ```
 
 The CLI covers common structure cases; for multi-operation edits (e.g. create a folder AND fill
-it in one CR) use curl with an `operations` array. Each op is discriminated on `kind`
+it in one CR) use `busabase-cli api` with an `operations` array. Each op is discriminated on `kind`
 (create | rename | move | delete | restore), and a create op can declare a temporary `ref` that
 later ops target via `parentNodeRef`. Omit `autoMerge` here too — add `"autoMerge": false` only
 to force review on this batch regardless of permission.
 
 ```bash
-curl -X POST "$BUSABASE_BASE_URL/api/v1/nodes/change-requests" \
-  -H "Authorization: Bearer $BUSABASE_API_KEY" -H "x-busabase-space: $BUSABASE_SPACE_ID" \
-  -H 'content-type: application/json' \
-  --data '{ "message": "Set up the Growth workspace", "submittedBy": "agent",
+npx --yes busabase-cli@0.98.0 api --method post --path /api/v1/nodes/change-requests \
+  --body-json '{ "message": "Set up the Growth workspace", "submittedBy": "agent",
             "operations": [
               { "kind": "create", "ref": "growth", "nodeType": "folder", "slug": "growth", "name": "Growth" },
               { "kind": "create", "parentNodeRef": "growth", "nodeType": "base", "slug": "campaigns", "name": "Campaigns",
@@ -209,7 +207,7 @@ resource filter, so never route a node-scoped check through it. A full unbounded
 return large nested file trees and should be used only when that complete payload is actually
 required.
 
-## 2. `curl` — quick, zero install
+## 2. `curl` — quick, zero install (open servers only)
 
 ```bash
 curl "$BUSABASE_BASE_URL/api/v1/bases"            # tables in this workspace
@@ -217,8 +215,10 @@ curl "$BUSABASE_BASE_URL/api/v1/change-requests"  # the review queue
 curl "$BUSABASE_BASE_URL/api/v1/records/paged?baseId=<base-id>&limit=100"  # merged canonical records
 ```
 
-On Cloud, add `-H "Authorization: Bearer $BUSABASE_API_KEY"` and
-`-H "x-busabase-space: $BUSABASE_SPACE_ID"` to every call.
+These work on an open server (Desktop/local). On Cloud, **never put the API key on a command
+line** — `-H "Authorization: Bearer …"` shows up in the process list (`ps`) for every other user
+on the machine. Use `busabase-cli api --method get --path /api/v1/bases` instead: it reads the key
+from `~/.busabase/.env` itself and sends the same request.
 
 ## 3. OpenAPI / MCP — the complete, current surface
 

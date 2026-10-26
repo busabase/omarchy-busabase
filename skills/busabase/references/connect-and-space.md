@@ -11,8 +11,10 @@ curl -s -o /dev/null -w '%{http_code}' "$BUSABASE_BASE_URL/api/v1/bases"
 ```
 
 - **Desktop / local** runs with no auth (`200`): proceed anonymously, no key needed.
-- **Cloud / self-hosted cloud edition** (`401`): every call needs `Authorization: Bearer
-  $BUSABASE_API_KEY`, and usually `x-busabase-space` (below). Both come from `~/.busabase/.env`.
+- **Cloud / self-hosted cloud edition** (`401`): every call needs the API key and usually
+  `x-busabase-space` (below). Both come from `~/.busabase/.env`; `busabase-cli` sends them for you.
+  Never write the key into a command line (`curl -H "Authorization: Bearer …"`): other users on
+  the machine can read it in the process list.
 
 ## Signing in: the two-turn device flow (the agent path)
 
@@ -72,7 +74,8 @@ with no `x-busabase-space` header is rejected with `400`** (it lists your spaces
 silently guessing. Always confirm the target before the first write of a session:
 
 ```bash
-curl "$BUSABASE_BASE_URL/api/v1/auth" -H "Authorization: Bearer $BUSABASE_API_KEY"
+busabase-cli auth status        # offline: accounts and the targeted space
+busabase-cli api --method get --path /api/v1/auth --output json
 ```
 
 `spaces` in the response is every space the user belongs to; `space` is the default.
@@ -96,7 +99,7 @@ on the right one. A raw `>>` would only patch the mirror file and be lost the ne
 `busabase-cli auth switch`. Without the CLI, `printf 'BUSABASE_SPACE_ID=%s\n' "<id>" >>
 ~/.busabase/.env` still works for a single account.
 
-Then send `-H "x-busabase-space: $BUSABASE_SPACE_ID"` on **every** curl call. A space you're not
+Then target it on **every** request: `busabase-cli` reads `BUSABASE_SPACE_ID` itself (or pass `--space-id`). A space you're not
 a member of returns 403; a missing header when the user has multiple spaces returns 400.
 Programmatic clients should branch on `data.reason`: `SPACE_SELECTION_REQUIRED` means show or
 ask for a Space choice; `SPACE_NOT_ALLOWED` means discard the stale/invalid choice and select
@@ -108,7 +111,7 @@ operation rather than silently relying on the default.)
 ## Two auth facts worth knowing before you debug a 401
 
 - `/api/v1` accepts an ambient **session cookie** only for *same-origin browser* requests (that
-  is how an AirApp acts as the logged-in user). Your curl calls are neither, so they always need
+  is how an AirApp acts as the logged-in user). Your CLI and curl calls are neither, so they always need
   `Authorization: Bearer` — a cookie alone is rejected, by design.
 - An AirApp reaches the API at plain `/api/v1/…` on its own origin. There is no bridge prefix
   and no Cloud-vs-Desktop path fork; if you see either in existing AirApp code, it predates
