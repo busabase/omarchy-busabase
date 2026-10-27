@@ -4,6 +4,11 @@
 # writes ~/.busabase/.env for the widget, the CLI and your agents alike.
 set -uo pipefail
 
+# Whatever the CLI creates while signing in (~/.busabase, .env) is born owner-only,
+# even when this shell's umask is 022 and the CLI itself creates files before it
+# tightens them (busabase-cli before 0.99.2 did exactly that).
+umask 077
+
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   teal=$'\e[38;5;43m' off=$'\e[0m'
 else
