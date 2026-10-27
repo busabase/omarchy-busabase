@@ -44,7 +44,7 @@ yet — click it:
 **1. Sign in.** *Sign in to Busabase* opens Omarchy's terminal with
 `busabase-cli login`. Press Enter for Busabase Cloud, then approve the short code
 in your browser. (It runs `busabase-cli` if installed, otherwise
-the pinned `npx busabase-cli@0.98.0`, which needs Node.js — Omarchy ships it via mise.)
+the pinned `npx busabase-cli@0.99.2`, which needs Node.js — Omarchy ships it via mise.)
 
 ![The sign-in terminal: the Omarchy and Busabase logos, then busabase-cli login](assets/sign-in.png)
 
@@ -93,9 +93,9 @@ Plugins run unsandboxed as your user, so here is the full list.
   installed yourself.
 - **The bundled skill** (`skills/busabase`, linked only when you switch it on)
   tells your agents to run the CLI pinned to the release this plugin was
-  reviewed with, `npx --yes busabase-cli@0.98.0`, not a moving `@latest`.
+  reviewed with, `npx --yes busabase-cli@0.99.2`, not a moving `@latest`.
 - **Never** runs an installer, asks for root or administrator rights, or
-  downloads code — except the pinned `npx busabase-cli@0.98.0 login` fallback,
+  downloads code — except the pinned `npx busabase-cli@0.99.2 login` fallback,
   which only runs when you click *Sign in* and `busabase-cli` is missing.
 
 Dependencies: `bash` and `curl`, both in Omarchy.
