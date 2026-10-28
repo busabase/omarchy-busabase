@@ -84,7 +84,10 @@ nothing happens. Each session is offered once.
 
 Both use Omarchy's default agent if it is Claude Code or Codex, otherwise the
 one you used most recently, run unattended the way Omarchy runs them
-(`--permission-mode auto` / `--approve-for-me`).
+(`--permission-mode auto` / `--approve-for-me`). A capture runs in a private
+empty directory, not wherever you pressed the key, so no project's hooks,
+`CLAUDE.md` or `AGENTS.md` run unattended; Claude Code also loads only your
+user settings (`--setting-sources user`), including when it resumes a session.
 
 ## Keys
 

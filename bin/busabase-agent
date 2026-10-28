@@ -51,14 +51,37 @@ pick_agent() {
   return 1
 }
 
-# Run $agent headless with the instruction on stdin; $2 optional session to resume.
+# A capture runs here, never in whatever directory the keypress happened to
+# inherit: an unattended agent started inside a project would load that
+# project's hooks, CLAUDE.md / AGENTS.md and settings, and run them without
+# anyone watching. Private (0700) and empty.
+private_workdir() {
+  local dir="${XDG_RUNTIME_DIR:-}"
+  [[ -n "$dir" && -d "$dir" && -O "$dir" ]] || dir="${TMPDIR:-/tmp}/busabase-$(id -u)"
+  dir="$dir/busabase/agent"
+  (umask 077 && mkdir -p "$dir") || return 1
+  chmod 700 "$dir" "$(dirname "$dir")" 2>/dev/null
+  [[ -O "$dir" ]] || return 1
+  printf '%s' "$dir"
+}
+
+# Run $agent headless with the instruction on stdin; $2 optional session to
+# resume; $4 optional extra directory the agent may read (the note's).
 run_agent() {
-  local agent="$1" session="${2:-}" instruction="$3" answer_file out
+  local agent="$1" session="${2:-}" instruction="$3" read_dir="${4:-}" answer_file out
   answer_file="$(mktemp)"   # 0600
   case "$agent" in
     claude)
-      local args=(-p --permission-mode auto --output-format json)
-      [[ -n "$session" ]] && args+=(--resume "$session")
+      # --setting-sources user: the user's own settings (and sign-in) still
+      # apply; a project's .claude/settings*.json, and the hooks in them, do not.
+      local args=(-p --permission-mode auto --output-format json --setting-sources user)
+      if [[ -n "$session" ]]; then
+        args+=(--resume "$session")
+      else
+        # A one-off capture is not a session worth resuming or offering to keep.
+        args+=(--no-session-persistence)
+      fi
+      [[ -n "$read_dir" ]] && args+=(--add-dir "$read_dir")
       out="$(printf '%s' "$instruction" | timeout "$TIME_LIMIT" claude "${args[@]}" 2>/dev/null)" || { rm -f "$answer_file"; return 1; }
       printf '%s' "$out" | jq -r '.result // empty' > "$answer_file" 2>/dev/null
       ;;
@@ -68,7 +91,7 @@ run_agent() {
           -o "$answer_file" resume "$session" - >/dev/null 2>&1 || { rm -f "$answer_file"; return 1; }
       else
         printf '%s' "$instruction" | timeout "$TIME_LIMIT" codex exec --approve-for-me --skip-git-repo-check \
-          -o "$answer_file" - >/dev/null 2>&1 || { rm -f "$answer_file"; return 1; }
+          -C "$PWD" -o "$answer_file" - >/dev/null 2>&1 || { rm -f "$answer_file"; return 1; }
       fi
       ;;
     *) rm -f "$answer_file"; return 3 ;;
@@ -111,7 +134,10 @@ case "${1:-}" in
     file="${2:?usage: busabase-agent capture <file>}"
     [[ -r "$file" ]] || { echo "busabase-agent: cannot read $file" >&2; exit 1; }
     agent="$(pick_agent)" || { echo "busabase-agent: no supported agent (claude or codex) is installed" >&2; exit 3; }
-    run_agent "$agent" "" "$(authorization)${CAPTURE_INSTRUCTION}${file}"
+    file="$(realpath -e -- "$file")" || exit 1
+    workdir="$(private_workdir)" || { echo "busabase-agent: cannot create a private working directory" >&2; exit 1; }
+    cd "$workdir" || exit 1
+    run_agent "$agent" "" "$(authorization)${CAPTURE_INSTRUCTION}${file}" "$(dirname "$file")"
     ;;
   keep-session)
     agent="${2:?usage: busabase-agent keep-session <agent> <session> [cwd]}"
@@ -120,7 +146,9 @@ case "${1:-}" in
     case " $SUPPORTED " in *" $agent "*) ;; *) echo "busabase-agent: $agent is not supported" >&2; exit 3 ;; esac
     command -v "$agent" >/dev/null 2>&1 || { echo "busabase-agent: $agent is not installed" >&2; exit 3; }
     [[ "$session" =~ ^[A-Za-z0-9-]{8,64}$ ]] || { echo "busabase-agent: bad session id" >&2; exit 1; }
-    # Resume where the session ran, so the agent sees the same project.
+    # Resume where the session ran, so the agent sees the same project. Claude
+    # Code still skips that project's settings and hooks (--setting-sources user):
+    # the person ran them interactively, not unattended.
     if [[ -n "$cwd" && -d "$cwd" ]]; then cd "$cwd" || exit 1; fi
     run_agent "$agent" "$session" "$(authorization)${KEEP_INSTRUCTION}"
     ;;
