@@ -274,12 +274,16 @@ Item {
     Util.execDetached("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(Util.shellQuote(signinPath)))
   }
 
-  // An account-less local server needs no sign-in, only its address.
+  // An account-less local server needs no sign-in, only its address. It must
+  // not inherit a Cloud key: whatever listens on that port would receive it. So
+  // the key and space are paused (commented out, not deleted) while this is on;
+  // signing in again writes them back.
   function useLocalServer() {
     // umask first, so a freshly created ~/.busabase is 0700 and .env 0600.
     Util.execDetached("umask 077 && mkdir -p \"$HOME/.busabase\" && "
       + "f=\"$HOME/.busabase/.env\"; touch \"$f\"; "
-      + "grep -v '^BUSABASE_BASE_URL=' \"$f\" > \"$f.tmp\" || true; "
+      + "{ grep -v '^BUSABASE_BASE_URL=' \"$f\" || true; } "
+      + "| sed -E 's/^(BUSABASE_API_KEY=|BUSABASE_SPACE_ID=)/# paused on this computer: \\1/' > \"$f.tmp\"; "
       + "printf 'BUSABASE_BASE_URL=%s\\n' " + Util.shellQuote(Model.LOCAL_BASE_URL) + " >> \"$f.tmp\"; "
       + "mv \"$f.tmp\" \"$f\"")
     retrySoon.restart()

@@ -4,101 +4,97 @@
 
 A typed Node client over the same REST API. It **auto-loads `~/.busabase/.env`** (and respects
 `BUSABASE_BASE_URL` / `BUSABASE_API_KEY` exported in your shell, which override the file), so it
-just works with no setup — you don't even need the `source` step (that's only for raw `curl`).
-Keep the `@latest`: without it, npx runs any `busabase-cli` it already finds (a global install,
-or a `node_modules` in a parent directory) without checking its version. `@latest` costs one
-registry check per call; for a tight loop, `npm i -g busabase-cli@latest` once per session and
-call plain `busabase-cli`:
+just works with no setup — you don't even need the `source` step (that's only for raw `curl`):
 
 ```bash
-npx --yes busabase-cli@latest whoami                  # active space + user
-npx --yes busabase-cli@latest bases list              # the tables
-npx --yes busabase-cli@latest records list --base-id <base-id> --limit 20 --output json
-npx --yes busabase-cli@latest change-requests list \
+npx --yes busabase-cli@0.99.2 whoami                  # active space + user
+npx --yes busabase-cli@0.99.2 bases list              # the tables
+npx --yes busabase-cli@0.99.2 records list --base-id <base-id> --limit 20 --output json
+npx --yes busabase-cli@0.99.2 change-requests list \
   --status-json '["in_review","approved","conflict"]' --limit 20 --output json
-npx --yes busabase-cli@latest change-requests list \
+npx --yes busabase-cli@0.99.2 change-requests list \
   --affects-node-id <node-id> \
   --status-json '["in_review","approved","conflict"]' --limit 1 --output json
 
 # Which account / which space am I on? (offline — reads the stored config, no API call)
-npx --yes busabase-cli@latest auth status             # accounts, grouped by host, * = active
-npx --yes busabase-cli@latest space list              # spaces this credential can reach, * = targeted
+npx --yes busabase-cli@0.99.2 auth status             # accounts, grouped by host, * = active
+npx --yes busabase-cli@0.99.2 space list              # spaces this credential can reach, * = targeted
 
 # First, on every instruction: is there already a playbook (a skill or a custom prompt) for
 # this job? Several phrasings, the user's language + English; nearest to --near-node-id first.
-npx --yes busabase-cli@latest playbooks search --query "做周报" --query "weekly report" \
+npx --yes busabase-cli@0.99.2 playbooks search --query "做周报" --query "weekly report" \
   --near-node-id <node-id> --output json
 # → { items: [{ kind, nodeId, nodeName, path, key?, label?, name?, description?, matchedOn }],
 #     total, truncated, coverage }   — truncated / "unsupported" coverage ≠ "none exist"
-npx --yes busabase-cli@latest playbooks search --kinds skill --limit 20 --output json   # no --query = browse
-npx --yes busabase-cli@latest playbooks get --kind prompt --node-id <node-id> --key <key>   # follow it
-npx --yes busabase-cli@latest playbooks get --kind skill --node-id <node-id>                # SKILL.md + files
+npx --yes busabase-cli@0.99.2 playbooks search --kinds skill --limit 20 --output json   # no --query = browse
+npx --yes busabase-cli@0.99.2 playbooks get --kind prompt --node-id <node-id> --key <key>   # follow it
+npx --yes busabase-cli@0.99.2 playbooks get --kind skill --node-id <node-id>                # SKILL.md + files
 
 # Find where something lives before you act on it — one call searches files, Docs, Base
 # records AND custom prompts (real line/column numbers, regex, honest per-source coverage).
 # A file hit carries `owner` — the skill/drive it is in, with its folder path:
-npx --yes busabase-cli@latest grep --pattern "Termination" --context-lines 2 --output json
+npx --yes busabase-cli@0.99.2 grep --pattern "Termination" --context-lines 2 --output json
 # Scope to one source when you already know where to look (faster, narrower coverage report):
-npx --yes busabase-cli@latest grep --pattern "ACME Corp" --sources records --base-slugs contracts
-npx --yes busabase-cli@latest grep --pattern "weekly report" --flags i --sources prompts   # → nodeId, key, locale, field
+npx --yes busabase-cli@0.99.2 grep --pattern "ACME Corp" --sources records --base-slugs contracts
+npx --yes busabase-cli@0.99.2 grep --pattern "weekly report" --flags i --sources prompts   # → nodeId, key, locale, field
 # `truncated: true` → narrow instead of raising --max-matches: --sources first, then
 # --base-slugs (records) or --drive-path (files).
 # Files-only, with the fuller missing/stale/unsearchable file reporting — same engine, `grep`
 # above composes this plus Docs plus records into one call:
-npx --yes busabase-cli@latest assets grep --pattern "Termination" --drive-path contracts/
+npx --yes busabase-cli@0.99.2 assets grep --pattern "Termination" --drive-path contracts/
 # Then read just the lines around a hit instead of the whole file/Doc:
-npx --yes busabase-cli@latest assets read-lines --asset-id <asset-id> --start-line 118 --end-line 122
-npx --yes busabase-cli@latest docs read-lines --node-id <node-id> --start-line 118 --end-line 122
+npx --yes busabase-cli@0.99.2 assets read-lines --asset-id <asset-id> --start-line 118 --end-line 122
+npx --yes busabase-cli@0.99.2 docs read-lines --node-id <node-id> --start-line 118 --end-line 122
 # grep's `missing` names binary files (PDF/docx/images/…) with no extracted text yet — run your
 # own extractor and hand the result back so they stop being invisible to search:
-npx --yes busabase-cli@latest assets put-text --asset-id <asset-id> --file ./extracted.txt
+npx --yes busabase-cli@0.99.2 assets put-text --asset-id <asset-id> --file ./extracted.txt
 
 # propose (server decides review-vs-merge for you) → read back:
-npx --yes busabase-cli@latest bases create-change-request --base-id <id> \
+npx --yes busabase-cli@0.99.2 bases create-change-request --base-id <id> \
   --fields-json '{"title":"…","body":"…"}' \
   --message "Add Acme Corp — qualified lead from the June webinar"
 # Update many existing records in one atomic review. Each fields object is a
 # partial patch; omitted keys stay unchanged and null clears a field.
-npx --yes busabase-cli@latest records bulk-update-change-request --base-id <id> \
+npx --yes busabase-cli@0.99.2 records bulk-update-change-request --base-id <id> \
   --updates-json @updates.json \
   --message "Apply August content review decisions" --require-review
 # If it comes back "in_review" (your key is changeRequest-level, or the human wants
 # review), a human decides:
-npx --yes busabase-cli@latest change-requests review --change-request-id <id> --verdict approved
-npx --yes busabase-cli@latest change-requests merge  --change-request-id <id>
+npx --yes busabase-cli@0.99.2 change-requests review --change-request-id <id> --verdict approved
+npx --yes busabase-cli@0.99.2 change-requests merge  --change-request-id <id>
 
 # structure creates (Base / folder / Doc / File / Skill) follow the same rule:
-npx --yes busabase-cli@latest nodes create-change-request --type folder \
+npx --yes busabase-cli@0.99.2 nodes create-change-request --type folder \
   --name "客户关系管理 CRM" \
   --message "Create CRM folder"
 # ...same conditional review step as above if it comes back "in_review".
 
 # Base detail accepts either stable id or slug (use exactly one):
-npx --yes busabase-cli@latest bases get --base-id <base-id> --output json
-npx --yes busabase-cli@latest bases get --slug <base-slug> --output json
+npx --yes busabase-cli@0.99.2 bases get --base-id <base-id> --output json
+npx --yes busabase-cli@0.99.2 bases get --slug <base-slug> --output json
 
 # Change a node's human-facing description through a permission-aware ChangeRequest:
-npx --yes busabase-cli@latest nodes update-description --node-id <node-id> \
+npx --yes busabase-cli@0.99.2 nodes update-description --node-id <node-id> \
   --description "Budget, creator roster and delivery history" \
   --message "Clarify the influencer workspace purpose"
 
 # A View update changes only the supplied config keys. This keeps existing
 # filters/sorts/widths when adding a visible column; pass `sorts: []` to clear
 # the sort intentionally. Read the resulting View back after the CR lands.
-npx --yes busabase-cli@latest views change-request --action update --view-id <view-id> \
+npx --yes busabase-cli@0.99.2 views change-request --action update --view-id <view-id> \
   --patch-json '{"config":{"visibleFieldSlugs":["title","campaign","date"]}}' \
   --message "Show Campaign on the Activity table"
 
 # The raw API helper accepts either a path below /api/v1 or a full API path:
-npx --yes busabase-cli@latest api --method get --path /bases
-npx --yes busabase-cli@latest api --method get --path /api/v1/bases
+npx --yes busabase-cli@0.99.2 api --method get --path /bases
+npx --yes busabase-cli@0.99.2 api --method get --path /api/v1/bases
 
 # Force review even though your key could write directly — e.g. the change is risky, or
 # the human asked for a second pair of eyes:
-npx --yes busabase-cli@latest bases create --slug campaigns --name "Campaigns" --require-review
+npx --yes busabase-cli@0.99.2 bases create --slug campaigns --name "Campaigns" --require-review
 
 # asset-backed attachment fields:
-npx --yes busabase-cli@latest bases create-field --base-id <base-id> \
+npx --yes busabase-cli@0.99.2 bases create-field --base-id <base-id> \
   --slug cover_image \
   --name "封面 Cover Image" \
   --field-type attachment \
@@ -106,25 +102,23 @@ npx --yes busabase-cli@latest bases create-field --base-id <base-id> \
   --allowed-mime image/png \
   --allowed-mime image/svg+xml
 
-npx --yes busabase-cli@latest assets upload --file ./cover.svg --context record-field --output json
+npx --yes busabase-cli@0.99.2 assets upload --file ./cover.svg --context record-field --output json
 # Put the JSON output directly into an attachment field array:
 # {"cover_image":[{"id":"...","assetId":"...","attachmentId":"...","url":"...","fileName":"cover.svg","mimeType":"image/svg+xml","size":1234}]}
 
 # clean up a bad proposal without merging:
-npx --yes busabase-cli@latest change-requests close --change-request-id <id> --reason "Wrong folder"
+npx --yes busabase-cli@0.99.2 change-requests close --change-request-id <id> --reason "Wrong folder"
 ```
 
 The CLI covers common structure cases; for multi-operation edits (e.g. create a folder AND fill
-it in one CR) use curl with an `operations` array. Each op is discriminated on `kind`
+it in one CR) use `busabase-cli api` with an `operations` array. Each op is discriminated on `kind`
 (create | rename | move | delete | restore), and a create op can declare a temporary `ref` that
 later ops target via `parentNodeRef`. Omit `autoMerge` here too — add `"autoMerge": false` only
 to force review on this batch regardless of permission.
 
 ```bash
-curl -X POST "$BUSABASE_BASE_URL/api/v1/nodes/change-requests" \
-  -H "Authorization: Bearer $BUSABASE_API_KEY" -H "x-busabase-space: $BUSABASE_SPACE_ID" \
-  -H 'content-type: application/json' \
-  --data '{ "message": "Set up the Growth workspace", "submittedBy": "agent",
+npx --yes busabase-cli@0.99.2 api --method post --path /api/v1/nodes/change-requests \
+  --body-json '{ "message": "Set up the Growth workspace", "submittedBy": "agent",
             "operations": [
               { "kind": "create", "ref": "growth", "nodeType": "folder", "slug": "growth", "name": "Growth" },
               { "kind": "create", "parentNodeRef": "growth", "nodeType": "base", "slug": "campaigns", "name": "Campaigns",
@@ -149,10 +143,10 @@ cat > prompts.json <<'JSON'
 ]
 JSON
 
-npx --yes busabase-cli@latest nodes create --type base --slug visits --name "Visits" \
+npx --yes busabase-cli@0.99.2 nodes create --type base --slug visits --name "Visits" \
   --field title:Title:text --field account:Account:text --agent-prompts-json @prompts.json
 
-npx --yes busabase-cli@latest nodes set-agent-prompts --node-id <nodeId> --file prompts.json
+npx --yes busabase-cli@0.99.2 nodes set-agent-prompts --node-id <nodeId> --file prompts.json
 ```
 
 Limits: 50 prompts per node, 80 chars per localized `label`, 8 KiB per localized `body`. `label`
@@ -182,8 +176,8 @@ Reads still run, so what you see is the fully-resolved plan, not a template. Rea
 not offer the flag — there would be nothing to suppress.
 
 ```bash
-npx --yes busabase-cli@latest bases create-change-request --base-id <id> --fields-json @fields.json --dry-run
-npx --yes busabase-cli@latest api --method post --path /api/v1/nodes --body-json '{...}' --dry-run
+npx --yes busabase-cli@0.99.2 bases create-change-request --base-id <id> --fields-json @fields.json --dry-run
+npx --yes busabase-cli@0.99.2 api --method post --path /api/v1/nodes --body-json '{...}' --dry-run
 ```
 
 ### When a 403 says you lack permission
@@ -194,7 +188,7 @@ policy the server enforces. `busabase-cli schema <id>` shows that level too. Lev
 cannot merge its own proposal, which is the approval model working as designed, not a bug to
 route around.
 
-Run `npx --yes busabase-cli@latest --help` for the full command list; add `--output json` to parse results.
+Run `npx --yes busabase-cli@0.99.2 --help` for the full command list; add `--output json` to parse results.
 For record listing, keep `--limit` at `100` or below and use `nextCursor` with `--cursor` for
 additional pages.
 
@@ -213,7 +207,7 @@ resource filter, so never route a node-scoped check through it. A full unbounded
 return large nested file trees and should be used only when that complete payload is actually
 required.
 
-## 2. `curl` — quick, zero install
+## 2. `curl` — quick, zero install (open servers only)
 
 ```bash
 curl "$BUSABASE_BASE_URL/api/v1/bases"            # tables in this workspace
@@ -221,8 +215,10 @@ curl "$BUSABASE_BASE_URL/api/v1/change-requests"  # the review queue
 curl "$BUSABASE_BASE_URL/api/v1/records/paged?baseId=<base-id>&limit=100"  # merged canonical records
 ```
 
-On Cloud, add `-H "Authorization: Bearer $BUSABASE_API_KEY"` and
-`-H "x-busabase-space: $BUSABASE_SPACE_ID"` to every call.
+These work on an open server (Desktop/local). On Cloud, **never put the API key on a command
+line** — `-H "Authorization: Bearer …"` shows up in the process list (`ps`) for every other user
+on the machine. Use `busabase-cli api --method get --path /api/v1/bases` instead: it reads the key
+from `~/.busabase/.env` itself and sends the same request.
 
 ## 3. OpenAPI / MCP — the complete, current surface
 
@@ -240,10 +236,10 @@ asked for. Reading one endpoint's arguments out of `openapi.json` costs roughly 
 type is inlined per endpoint, with no shared component schemas); `schema` costs a few KB.
 
 ```bash
-npx --yes busabase-cli@latest schema                                    # index: id, method, path, summary
-npx --yes busabase-cli@latest schema bases.list                         # input + output as JSON Schema
-npx --yes busabase-cli@latest schema records.changeRequest --io input   # only what to send
-npx --yes busabase-cli@latest schema records list --output json         # machine-readable; space form works too
+npx --yes busabase-cli@0.99.2 schema                                    # index: id, method, path, summary
+npx --yes busabase-cli@0.99.2 schema bases.list                         # input + output as JSON Schema
+npx --yes busabase-cli@0.99.2 schema records.changeRequest --io input   # only what to send
+npx --yes busabase-cli@0.99.2 schema records list --output json         # machine-readable; space form works too
 ```
 
 It also prints the `busabase-cli` command that calls the endpoint, so the schema and the command

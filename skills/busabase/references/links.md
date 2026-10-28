@@ -29,14 +29,12 @@ or `changeRequest` on every affected node for a proposal):
 busabase-cli embed-links create --type node --type-id <node-id> --output json
 ```
 
-or the same call over curl, when you are already in the raw-API loop:
+or the same call as a raw request (the CLI adds the key and space itself; never pass the key on a
+command line):
 
 ```bash
-curl -s -X POST "$BUSABASE_BASE_URL/api/v1/embed-links" \
-  -H "Authorization: Bearer $BUSABASE_API_KEY" \
-  -H "x-busabase-space: $BUSABASE_SPACE_ID" \
-  -H 'content-type: application/json' \
-  -d '{"type":"node","typeId":"<node-id>"}'
+busabase-cli api --method post --path /api/v1/embed-links \
+  --body-json '{"type":"node","typeId":"<node-id>"}'
 ```
 
 It returns `url` (open top-level — the capability is swapped for a cookie and the token drops
@@ -55,7 +53,7 @@ than no link at all.
 **Cloud, still awaiting review** — a pending ChangeRequest is embeddable too: swap `type` to
 `change-request` and pass the CR's own id as `typeId` (`busabase-cli embed-links create --type
 change-request --type-id <change-request-id> --output json`, or
-`{"type":"change-request","typeId":"<change-request-id>"}` over curl). The embed renders the
+`{"type":"change-request","typeId":"<change-request-id>"}` as a raw `busabase-cli api` body). The embed renders the
 CR's review view read-only. Give both links as above — the embed `url`/`iframeUrl` for no-login
 preview, and `/inbox/<change-request-id>` for the signed-in reviewer who will actually approve
 or merge it.
@@ -102,7 +100,7 @@ Desktop / local:
 `Created the customer record: [Open](http://localhost:15419/dashboard/local/base/customers/rec_123).`
 
 **If the CLI is present but this skill is not** — the same instructions ship inside the binary, so
-an agent that only ran `npx --yes busabase-cli@latest` is not left guessing at the rules above. `busabase-cli
+an agent that only ran `npx --yes busabase-cli@0.99.2` is not left guessing at the rules above. `busabase-cli
 skill` prints this skill offline, `busabase-cli skill setup` prints the one-time onboarding
 document instead (connect, seed a first Base, install the permanent skills), and `busabase-cli
 skill install` writes the skill into the agent's skills directory so it loads on every later
