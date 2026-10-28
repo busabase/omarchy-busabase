@@ -1,4 +1,4 @@
-// Run: node --test test/
+// Run: node --test test/*.test.mjs
 // Model.js is a QML JavaScript library (`.pragma library`, no exports), so it is
 // loaded into a vm context the same way the shell evaluates it.
 import assert from "node:assert/strict";
@@ -171,8 +171,44 @@ test("an exact session id is carried through; a Codex session sharing its direct
   assert.deepEqual(plain(state.ended), [
     { agent: "claude", cwd: "/w/app", startedAt: t0, minutes: 60, sessionId: "aaaaaaaa-1111-2222-3333-444444444444" },
   ]);
-  // Once the last Codex in /w/api ends, it is offered (resolved by directory).
+  // Codex 32 shared /w/api with 31 all along, so when it ends too it is still
+  // not offered: its directory holds two conversations and either could be it.
   state = Model.endedSessions(state.tracked, [start[1]], later, 10);
+  assert.deepEqual(plain(state.ended), []);
+});
+
+test("two Codex sessions in one directory that end between scans are both declined", () => {
+  const t0 = 3_000_000;
+  const both = [
+    { pid: 41, agent: "codex", cwd: "/w/api", startedAt: t0 },
+    { pid: 42, agent: "codex", cwd: "/w/api", startedAt: t0 + 600 },
+  ];
+  let state = Model.endedSessions({}, both, t0 + 3600, 10);
+  state = Model.endedSessions(state.tracked, [], t0 + 3615, 10);
+  assert.deepEqual(plain(state.ended), []);
+});
+
+test("a Codex session that once shared its directory is declined even after the other left", () => {
+  const t0 = 4_000_000;
+  const a = { pid: 51, agent: "codex", cwd: "/w/api", startedAt: t0 };
+  const b = { pid: 52, agent: "codex", cwd: "/w/api", startedAt: t0 + 60 };
+  let state = Model.endedSessions({}, [a, b], t0 + 120, 10);
+  state = Model.endedSessions(state.tracked, [a], t0 + 300, 10); // b ends after 4 min: too short to offer
+  assert.deepEqual(plain(state.ended), []);
+  state = Model.endedSessions(state.tracked, [a], t0 + 3000, 10);
+  state = Model.endedSessions(state.tracked, [], t0 + 3600, 10); // a ends alone, but b wrote there too
+  assert.deepEqual(plain(state.ended), []);
+});
+
+test("sessions in other directories, or of the other agent, do not count as sharing", () => {
+  const t0 = 5_000_000;
+  const live = [
+    { pid: 61, agent: "codex", cwd: "/w/api", startedAt: t0 },
+    { pid: 62, agent: "codex", cwd: "/w/web", startedAt: t0 },
+    { pid: 63, agent: "claude", cwd: "/w/api", startedAt: t0 },
+  ];
+  let state = Model.endedSessions({}, live, t0 + 1200, 10);
+  state = Model.endedSessions(state.tracked, [live[1], live[2]], t0 + 1800, 10);
   assert.deepEqual(plain(state.ended.map((e) => e.agent + ":" + e.cwd)), ["codex:/w/api"]);
 });
 

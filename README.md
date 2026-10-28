@@ -129,6 +129,11 @@ Plugins run unsandboxed as your user, so here is the full list.
   in which directory, and the agents' session file names and timestamps (plus
   the first metadata line of a Codex session) to find the session that ended. It
   never reads conversation content; the agent does that itself, after you click.
+  Claude Code records which session each process runs, so that match is exact.
+  Without that record (always, for Codex) the session is matched by directory,
+  and only when the match is certain: if another session of the same agent was
+  in that directory at any point, or more than one terminal conversation there
+  was written to, no offer is made.
 - **The bundled skill** (`skills/busabase`, linked only when you switch it on;
   a capture or a kept session reads it from the plugin either way) tells your agents to run the CLI pinned to the release this plugin was
   reviewed with, `npx --yes busabase-cli@0.99.2`, not a moving `@latest`.
