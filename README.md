@@ -7,7 +7,8 @@
 Claude Code and Codex do real work — research, lists, decisions — and it usually
 evaporates when the session closes. With [Busabase](https://busabase.com) your
 agents save that work into a database and knowledge base you own. This widget
-puts it in your Omarchy bar.
+puts it in your Omarchy bar. Overview and screenshots:
+[busabase.com/omarchy-plugin](https://busabase.com/omarchy-plugin).
 
 - **Today's count, with a `+1` as it lands.** When an agent saves something, the
   count flashes `+1` and settles on the new total. No toast, no sound — work your
@@ -62,6 +63,34 @@ Busabase."* When it lands, the bar flashes `+1`, and the panel lists it:
 
 ![The panel: what Codex and Claude Code kept today, each named after the agent that saved it](assets/panel.png)
 
+## Keep things without asking an agent first
+
+**Keep what you selected.** Highlight any text (or copy it) and press your key:
+your coding agent reads it and files it in the right place in Busabase, in the
+background. A toast says *Keeping it*, then where it went. Bind it in
+`~/.config/hypr/bindings.lua` (Super + Alt + B is free on a stock Omarchy):
+
+```lua
+o.bind("SUPER + ALT + B", "Keep selection in Busabase", "omarchy-shell busabase capture")
+```
+
+Or click *Keep what I selected* in the panel.
+
+**Offer to keep finished sessions** (off by default; switch it on in the panel).
+When an interactive Claude Code or Codex session that ran for 10+ minutes ends,
+one toast asks whether to keep what it found. Click it and the same agent resumes
+that session in the background and saves what is worth keeping; ignore it and
+nothing happens. Each session is offered once.
+
+Both use Omarchy's default agent if it is Claude Code or Codex, otherwise the
+one you used most recently, run unattended the way Omarchy runs them
+(`--permission-mode auto` / `--approve-for-me`). A capture runs in a private
+empty directory, not wherever you pressed the key, so no project's hooks,
+`CLAUDE.md` or `AGENTS.md` run unattended; Claude Code also loads only your
+user settings (`--setting-sources user`), including when it resumes a session.
+The agent is pointed at the plugin's own copy of the skill, so this works whether
+or not the skill switch is on.
+
 ## Keys
 
 | Key | Action |
@@ -91,14 +120,24 @@ Plugins run unsandboxed as your user, so here is the full list.
   computer* (it sets `BUSABASE_BASE_URL`), and symlinks in your agents' skill
   folders only when you switch the skill on. It never overwrites a skill you
   installed yourself.
-- **The bundled skill** (`skills/busabase`, linked only when you switch it on)
-  tells your agents to run the CLI pinned to the release this plugin was
+- **Keeping a selection** reads the primary selection or clipboard once (text
+  only, capped at 64 KB) into a private file (0600 in a 0700 directory under
+  `$XDG_RUNTIME_DIR`), gives your agent only that file's path, and deletes it
+  when the agent is done. Captured text never appears on a command line.
+- **Offering to keep sessions** (only when switched on) reads `/proc` every 15
+  seconds to see which interactive `claude` / `codex` processes are running and
+  in which directory, and the agents' session file names and timestamps (plus
+  the first metadata line of a Codex session) to find the session that ended. It
+  never reads conversation content; the agent does that itself, after you click.
+- **The bundled skill** (`skills/busabase`, linked only when you switch it on;
+  a capture or a kept session reads it from the plugin either way) tells your agents to run the CLI pinned to the release this plugin was
   reviewed with, `npx --yes busabase-cli@0.99.2`, not a moving `@latest`.
 - **Never** runs an installer, asks for root or administrator rights, or
   downloads code — except the pinned `npx busabase-cli@0.99.2 login` fallback,
   which only runs when you click *Sign in* and `busabase-cli` is missing.
 
-Dependencies: `bash` and `curl`, both in Omarchy.
+Dependencies: `bash`, `curl`, `jq`, `wl-clipboard` and `notify-send`, all in
+Omarchy; Claude Code or Codex for the two "keep" features.
 
 ## Uninstall
 

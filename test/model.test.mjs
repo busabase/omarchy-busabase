@@ -139,3 +139,58 @@ test("server-provided names are clipped before they reach the shell", () => {
   assert.equal(Model.clip(null), "");
 });
 
+
+test("a finished agent session is offered once, and only if it ran long enough", () => {
+  const t0 = 1_000_000;
+  const live = [
+    { pid: 11, agent: "codex", cwd: "/w/app", startedAt: t0 },
+    { pid: 12, agent: "claude", cwd: "/w/api", startedAt: t0 + 3000 },
+  ];
+  let state = Model.endedSessions({}, live, t0 + 3060, 10);
+  assert.equal(state.ended.length, 0); // first scan: nothing ended yet
+
+  // Both exit. Codex ran 51 min, Claude only 2 min.
+  state = Model.endedSessions(state.tracked, [], t0 + 3060 + 120 - 0, 10);
+  assert.deepEqual(plain(state.ended), [{ agent: "codex", cwd: "/w/app", startedAt: t0, minutes: 53, sessionId: "" }]);
+  // Forgotten after that, so it is never offered twice.
+  assert.equal(Model.endedSessions(state.tracked, [], t0 + 9999, 10).ended.length, 0);
+});
+
+test("an exact session id is carried through; a Codex session sharing its directory is not guessed", () => {
+  const t0 = 2_000_000;
+  const start = [
+    { pid: 21, agent: "claude", cwd: "/w/app", startedAt: t0, sessionId: "aaaaaaaa-1111-2222-3333-444444444444" },
+    { pid: 22, agent: "claude", cwd: "/w/app", startedAt: t0 },
+    { pid: 31, agent: "codex", cwd: "/w/api", startedAt: t0 },
+    { pid: 32, agent: "codex", cwd: "/w/api", startedAt: t0 },
+  ];
+  const later = t0 + 3600;
+  let state = Model.endedSessions({}, start, later, 10);
+  // Claude 21 and Codex 31 end; their siblings in the same directories keep running.
+  state = Model.endedSessions(state.tracked, [start[1], start[3]], later, 10);
+  assert.deepEqual(plain(state.ended), [
+    { agent: "claude", cwd: "/w/app", startedAt: t0, minutes: 60, sessionId: "aaaaaaaa-1111-2222-3333-444444444444" },
+  ]);
+  // Once the last Codex in /w/api ends, it is offered (resolved by directory).
+  state = Model.endedSessions(state.tracked, [start[1]], later, 10);
+  assert.deepEqual(plain(state.ended.map((e) => e.agent + ":" + e.cwd)), ["codex:/w/api"]);
+});
+
+test("a setting of 0 minutes stays 0", () => {
+  assert.equal(Model.intSetting(0, 10, 0, 240), 0);
+  assert.equal(Model.intSetting("0", 10, 0, 240), 0);
+  assert.equal(Model.intSetting(undefined, 10, 0, 240), 10);
+  assert.equal(Model.intSetting("x", 60, 15, 3600), 60);
+  assert.equal(Model.intSetting(5, 60, 15, 3600), 15);
+});
+
+test("a folder the change created is named from its commit, not 'your workspace'", () => {
+  const folder = cr({
+    base: null,
+    node: null,
+    sourceAttribution: { displayName: "Kelly Agent", channel: "cli" },
+    primaryOperation: { operation: "node_create", headCommit: { payload: { kind: "create", name: "Omarchy Launch Week" } } },
+  });
+  assert.equal(Model.summaryOf(folder), "Kelly Agent created Omarchy Launch Week");
+});
+

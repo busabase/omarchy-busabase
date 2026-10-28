@@ -27,7 +27,10 @@ Item {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
   }
-  readonly property int refreshIntervalSec: Math.max(15, Math.min(3600, parseInt(setting("refreshIntervalSec", 60), 10) || 60))
+  readonly property int refreshIntervalSec: Model.intSetting(setting("refreshIntervalSec", 60), 60, 15, 3600)
+  // Opt-in: notice finished Claude Code / Codex sessions and offer to keep them.
+  readonly property bool keepSessions: setting("keepSessions", false) === true
+  readonly property int keepSessionsMinMinutes: Model.intSetting(setting("keepSessionsMinMinutes", 10), 10, 0, 240)
 
   // ---------------------------------------------------------------- state
 
@@ -133,6 +136,9 @@ Item {
   function refresh() {
     if (refreshing) return
     refreshing = true
+    // An agent installed or removed since the last look changes what the
+    // switch should say, so re-read the links on every refresh too.
+    if (!skillsProc.running) loadSkills()
     nowMs = Date.now()
     connectionProc.call(["connection"], function(code, out) {
       var c = Model.parseJson(out, {})
@@ -283,6 +289,18 @@ Item {
     retrySoon.restart()
   }
 
+  // Keep whatever is selected (or copied): the agent files it, a toast says where.
+  readonly property string capturePath: pluginDir + "/bin/busabase-capture"
+  function capture() {
+    Util.execDetached(Util.shellQuote(capturePath))
+  }
+
+  // Persist a widget setting through the bar CLI; shell.json hot-reloads it.
+  function setSetting(key, value) {
+    Util.execDetached("omarchy-bar set busabase " + Util.shellQuote(key) + " "
+      + Util.shellQuote(JSON.stringify(value)) + " --json")
+  }
+
   function loadSkills() {
     skillsProc.callback = function(code, out) { if (code === 0) root.skills = Model.parseJson(out, root.skills) }
     skillsProc.command = [root.skillsPath, "status"]
@@ -294,6 +312,41 @@ Item {
     skillsProc.command = [root.skillsPath, on ? "link" : "unlink"]
     skillsProc.running = true
   }
+
+  // ---------------------------------------------------------------- sessions
+
+  property var _trackedSessions: ({})
+  property int sessionsScans: 0
+  readonly property string sessionsPath: pluginDir + "/bin/busabase-sessions"
+  readonly property string offerPath: pluginDir + "/bin/busabase-offer"
+
+  Process {
+    id: sessionsProc
+    running: false
+    command: [root.sessionsPath, "live"]
+    stdout: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      root.sessionsScans++
+      if (exitCode !== 0) { console.warn("busabase: session scan failed", exitCode); return }
+      var live = Model.parseJson(stdout.text, [])
+      var result = Model.endedSessions(root._trackedSessions, live, Math.floor(Date.now() / 1000), root.keepSessionsMinMinutes)
+      root._trackedSessions = result.tracked
+      for (var i = 0; i < result.ended.length; i++) {
+        var e = result.ended[i]
+        Quickshell.execDetached([root.offerPath, e.agent, e.cwd, String(e.startedAt), String(e.minutes), e.sessionId])
+      }
+    }
+  }
+
+  Timer {
+    interval: 15000
+    running: root.keepSessions
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!sessionsProc.running) sessionsProc.running = true
+  }
+
+  onKeepSessionsChanged: if (!keepSessions) _trackedSessions = ({})
 
   // ---------------------------------------------------------------- timers
 

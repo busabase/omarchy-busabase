@@ -15,6 +15,14 @@ function clip(value, max) {
   return text.length > limit ? text.slice(0, limit - 1) + "…" : text
 }
 
+// A whole-number setting, clamped. 0 is a real value, not "unset" — a bare
+// `parseInt(x) || fallback` would turn a deliberate 0 into the fallback.
+function intSetting(value, fallback, min, max) {
+  var n = parseInt(String(value), 10)
+  if (!isFinite(n)) n = fallback
+  return Math.max(min, Math.min(max, n))
+}
+
 function parseJson(text, fallback) {
   try {
     var value = JSON.parse(String(text || ""))
@@ -197,6 +205,10 @@ function metaOf(cr, nowMs) {
 function targetOf(cr) {
   if (cr && cr.base && cr.base.name) return clip(cr.base.name)
   if (cr && cr.node && cr.node.name) return clip(cr.node.name)
+  // A node the change itself created (a folder, a doc) is not hydrated on the
+  // change request yet; its name is in the operation's own commit.
+  var payload = cr && cr.primaryOperation && cr.primaryOperation.headCommit && cr.primaryOperation.headCommit.payload
+  if (payload && payload.name) return clip(payload.name)
   return "your workspace"
 }
 
@@ -271,4 +283,41 @@ function statusLine(status, kind) {
     return kind === "local" ? "Busabase isn't running on this computer" : "Offline — can't reach Busabase"
   if (status === "error") return "Something went wrong — press r to retry"
   return ""
+}
+
+function sameAgentStillIn(live, agent, cwd) {
+  for (var i = 0; i < live.length; i++)
+    if (live[i] && live[i].agent === agent && live[i].cwd === cwd) return true
+  return false
+}
+
+// Session watching. `tracked` maps pid → {agent, cwd, startedAt} from the
+// previous scan; `live` is this scan. A session ends when its pid disappears;
+// only sessions that ran at least `minMinutes` are worth an offer (a quick
+// question to an agent is not work to keep).
+function endedSessions(tracked, live, nowSec, minMinutes) {
+  var next = {}
+  var stillHere = {}
+  var list = live || []
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i]
+    if (!s || !s.pid) continue
+    stillHere[s.pid] = true
+    next[s.pid] = { agent: String(s.agent), cwd: String(s.cwd), startedAt: Number(s.startedAt) || 0,
+                    sessionId: s.sessionId ? String(s.sessionId) : "" }
+  }
+  var ended = []
+  var min = Math.max(0, Number(minMinutes) || 0)
+  for (var pid in (tracked || {})) {
+    if (stillHere[pid]) continue
+    var t = tracked[pid]
+    var minutes = Math.floor((nowSec - t.startedAt) / 60)
+    if (!(t.startedAt > 0 && minutes >= min)) continue
+    // Without an exact session id (Codex), the session is found by directory
+    // afterwards — ambiguous while another session of that agent still runs
+    // there, so skip rather than risk keeping the wrong conversation.
+    if (!t.sessionId && sameAgentStillIn(list, t.agent, t.cwd)) continue
+    ended.push({ agent: t.agent, cwd: t.cwd, startedAt: t.startedAt, minutes: minutes, sessionId: t.sessionId || "" })
+  }
+  return { tracked: next, ended: ended }
 }
