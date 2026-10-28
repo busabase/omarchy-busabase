@@ -88,6 +88,8 @@ one you used most recently, run unattended the way Omarchy runs them
 empty directory, not wherever you pressed the key, so no project's hooks,
 `CLAUDE.md` or `AGENTS.md` run unattended; Claude Code also loads only your
 user settings (`--setting-sources user`), including when it resumes a session.
+The agent is pointed at the plugin's own copy of the skill, so this works whether
+or not the skill switch is on.
 
 ## Keys
 
@@ -127,8 +129,8 @@ Plugins run unsandboxed as your user, so here is the full list.
   in which directory, and the agents' session file names and timestamps (plus
   the first metadata line of a Codex session) to find the session that ended. It
   never reads conversation content; the agent does that itself, after you click.
-- **The bundled skill** (`skills/busabase`, linked only when you switch it on)
-  tells your agents to run the CLI pinned to the release this plugin was
+- **The bundled skill** (`skills/busabase`, linked only when you switch it on;
+  a capture or a kept session reads it from the plugin either way) tells your agents to run the CLI pinned to the release this plugin was
   reviewed with, `npx --yes busabase-cli@0.99.2`, not a moving `@latest`.
 - **Never** runs an installer, asks for root or administrator rights, or
   downloads code — except the pinned `npx busabase-cli@0.99.2 login` fallback,

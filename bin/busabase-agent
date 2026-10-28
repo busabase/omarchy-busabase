@@ -18,6 +18,11 @@
 set -uo pipefail
 
 PLUGIN_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# The skill this plugin ships, pinned to the CLI it was tested with. Linking it
+# into the agents' skill directories is opt-in, so the instruction names the
+# file outright: an agent with no busabase skill reads this one instead of
+# improvising its own commands.
+SKILL_DIR="$(dirname "$PLUGIN_BIN")/skills/busabase"
 TIME_LIMIT="${BUSABASE_AGENT_TIMEOUT:-600}"
 ANSWER_CHARS=200
 SUPPORTED="claude codex"
@@ -82,6 +87,7 @@ run_agent() {
         args+=(--no-session-persistence)
       fi
       [[ -n "$read_dir" ]] && args+=(--add-dir "$read_dir")
+      [[ -d "$SKILL_DIR" ]] && args+=(--add-dir "$SKILL_DIR")
       out="$(printf '%s' "$instruction" | timeout "$TIME_LIMIT" claude "${args[@]}" 2>/dev/null)" || { rm -f "$answer_file"; return 1; }
       printf '%s' "$out" | jq -r '.result // empty' > "$answer_file" 2>/dev/null
       ;;
@@ -111,20 +117,24 @@ authorization() {
   base="$("$PLUGIN_BIN/busabase-fetch" connection 2>/dev/null | jq -r '.baseUrl // empty' 2>/dev/null)"
   host="$(sed -E 's#^[a-z]+://##; s#/.*$##' <<<"$base")"
   [[ -n "$host" ]] || host="the server in ~/.busabase/.env"
-  printf '%s' "Authorization: the user signed in to Busabase at ${host} with busabase-cli login (credentials in ~/.busabase/.env) and asked for this from their Omarchy desktop just now. For this task only, you may use that stored key with ${host} and no other server.
-
-"
+  printf '%s' "Authorization: the user signed in to Busabase at ${host} with busabase-cli login (credentials in ~/.busabase/.env) and asked for this from their Omarchy desktop just now. For this task only, you may use that stored key with ${host} and no other server. Let busabase-cli read the key itself; never put it on a command line (no curl -H \"Authorization: ...\"), where other users of this computer can see it."
 }
+
+SKILL_HINT="Use the busabase skill. If you have no skill by that name, read ${SKILL_DIR}/SKILL.md first and follow it; its references/ folder sits next to it."
+
+# Who asked, which skill, then the job, a blank line apart. ($(...) drops
+# trailing newlines, so the separators are added here, not by the parts.)
+brief() { printf '%s\n\n%s\n\n%s' "$(authorization)" "$SKILL_HINT" "$1"; }
 
 REPLY_RULE='
 
 Reply with exactly one line. Start it with "Saved:" if something was saved (say what and where, no links), or "Not saved:" with the reason.'
 
-CAPTURE_INSTRUCTION='Use the busabase skill. The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Use the fields a Base already has: do not change any Base'"'"'s structure (no new fields, Bases or views) for a quick note, and never delete or overwrite anything. If nothing fits, do not save.'"$REPLY_RULE"'
+CAPTURE_INSTRUCTION='The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Use the fields a Base already has: do not change any Base'"'"'s structure (no new fields, Bases or views) for a quick note, and never delete or overwrite anything. If nothing fits, do not save.'"$REPLY_RULE"'
 
 Note file: '
 
-KEEP_INSTRUCTION='This coding session is over. Use the busabase skill to keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing.'"$REPLY_RULE"
+KEEP_INSTRUCTION='This coding session is over. Keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing.'"$REPLY_RULE"
 
 case "${1:-}" in
   which)
@@ -137,7 +147,7 @@ case "${1:-}" in
     file="$(realpath -e -- "$file")" || exit 1
     workdir="$(private_workdir)" || { echo "busabase-agent: cannot create a private working directory" >&2; exit 1; }
     cd "$workdir" || exit 1
-    run_agent "$agent" "" "$(authorization)${CAPTURE_INSTRUCTION}${file}" "$(dirname "$file")"
+    run_agent "$agent" "" "$(brief "${CAPTURE_INSTRUCTION}${file}")" "$(dirname "$file")"
     ;;
   keep-session)
     agent="${2:?usage: busabase-agent keep-session <agent> <session> [cwd]}"
@@ -150,7 +160,7 @@ case "${1:-}" in
     # Code still skips that project's settings and hooks (--setting-sources user):
     # the person ran them interactively, not unattended.
     if [[ -n "$cwd" && -d "$cwd" ]]; then cd "$cwd" || exit 1; fi
-    run_agent "$agent" "$session" "$(authorization)${KEEP_INSTRUCTION}"
+    run_agent "$agent" "$session" "$(brief "$KEEP_INSTRUCTION")"
     ;;
   *)
     echo "usage: busabase-agent which | capture <file> | keep-session <agent> <session> [cwd]" >&2
