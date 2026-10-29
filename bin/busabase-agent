@@ -103,8 +103,17 @@ run_agent() {
     *) rm -f "$answer_file"; return 3 ;;
   esac
   # One line, bounded: it goes into a notification.
-  tr '\n' ' ' < "$answer_file" | sed -E 's/\]\([^)]*\)/]/g; s/https?:\/\/[^ )]+//g; s/  +/ /g' | head -c "$ANSWER_CHARS"
+  local line before_not before_saved
+  line="$(tr '\n' ' ' < "$answer_file" | sed -E 's/\]\([^)]*\)/]/g; s/https?:\/\/[^ )]+//g; s/  +/ /g')"
   rm -f "$answer_file"
+  # Asked to start with "Saved:" or "Not saved:", an agent sometimes puts a
+  # sentence first; start at whichever marker comes first, if there is one.
+  before_not="${line%%Not saved:*}"
+  before_saved="${line%%Saved:*}"
+  if (( ${#before_not} < ${#line} || ${#before_saved} < ${#line} )); then
+    (( ${#before_not} <= ${#before_saved} )) && line="${line:${#before_not}}" || line="${line:${#before_saved}}"
+  fi
+  printf '%s' "$line" | head -c "$ANSWER_CHARS"
   return 0
 }
 
@@ -130,11 +139,16 @@ REPLY_RULE='
 
 Reply with exactly one line. Start it with "Saved:" if something was saved (say what and where, no links), or "Not saved:" with the reason.'
 
-CAPTURE_INSTRUCTION='The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). Save it into the place in their Busabase workspace where it fits best: an existing Base or Folder if one matches, otherwise a sensible new record. Keep the user'"'"'s words; add a short title. Use the fields a Base already has: do not change any Base'"'"'s structure (no new fields, Bases or views) for a quick note, and never delete or overwrite anything. If nothing fits, do not save.'"$REPLY_RULE"'
+# Where things go when no existing Base or Folder fits, so a first capture into
+# an empty workspace still lands somewhere. The one piece of structure an
+# unattended run may create, and only once.
+INBOX_RULE='If nothing in the workspace fits, add it as a record to the Base named "Inbox" at the top level of the workspace; if there is no Base by that name yet, create it once, with only two fields: Title (text) and Note (long text). Apart from that Inbox, do not change any structure (no new fields, Bases or views), and never delete or overwrite anything.'
+
+CAPTURE_INSTRUCTION='The user just captured a note from their desktop; its full text is in the file at the path below (read it, do not ask for it). The text may come from the clipboard, so if it looks like a secret (a password, an API key, a token or a private key), do not save it and say so. Otherwise save it where it fits best: an existing Base or Folder that matches, using the fields that Base already has. Keep the user'"'"'s words; add a short title. '"$INBOX_RULE$REPLY_RULE"'
 
 Note file: '
 
-KEEP_INSTRUCTION='This coding session is over. Keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits; do not duplicate anything already saved during this session; never delete or overwrite anything. If nothing is worth keeping, save nothing.'"$REPLY_RULE"
+KEEP_INSTRUCTION='This coding session is over. Keep what is worth keeping from it in the user'"'"'s Busabase workspace: findings, decisions, lists, follow-ups, useful links. Prefer an existing Base or Folder that fits, using the fields it already has; do not duplicate anything already saved during this session, and never save secrets (passwords, keys, tokens). If nothing is worth keeping, save nothing. '"$INBOX_RULE$REPLY_RULE"
 
 case "${1:-}" in
   which)
