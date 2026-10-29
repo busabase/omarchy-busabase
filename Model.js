@@ -285,9 +285,12 @@ function statusLine(status, kind) {
   return ""
 }
 
-function sameAgentStillIn(live, agent, cwd) {
-  for (var i = 0; i < live.length; i++)
-    if (live[i] && live[i].agent === agent && live[i].cwd === cwd) return true
+// Another session of the same agent in the same directory, other than `pid`.
+function hasCompanion(sessions, agent, cwd, pid) {
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i]
+    if (s && String(s.pid) !== String(pid) && s.agent === agent && s.cwd === cwd) return true
+  }
   return false
 }
 
@@ -299,24 +302,32 @@ function endedSessions(tracked, live, nowSec, minMinutes) {
   var next = {}
   var stillHere = {}
   var list = live || []
+  var prev = tracked || {}
   for (var i = 0; i < list.length; i++) {
     var s = list[i]
     if (!s || !s.pid) continue
     stillHere[s.pid] = true
     next[s.pid] = { agent: String(s.agent), cwd: String(s.cwd), startedAt: Number(s.startedAt) || 0,
-                    sessionId: s.sessionId ? String(s.sessionId) : "" }
+                    sessionId: s.sessionId ? String(s.sessionId) : "",
+                    shared: !!(prev[s.pid] && prev[s.pid].shared) || hasCompanion(list, s.agent, s.cwd, s.pid) }
+  }
+  var gone = []
+  for (var p in prev) {
+    if (!stillHere[p]) gone.push({ pid: p, agent: prev[p].agent, cwd: prev[p].cwd })
   }
   var ended = []
   var min = Math.max(0, Number(minMinutes) || 0)
-  for (var pid in (tracked || {})) {
+  for (var pid in prev) {
     if (stillHere[pid]) continue
-    var t = tracked[pid]
+    var t = prev[pid]
     var minutes = Math.floor((nowSec - t.startedAt) / 60)
     if (!(t.startedAt > 0 && minutes >= min)) continue
-    // Without an exact session id (Codex), the session is found by directory
-    // afterwards — ambiguous while another session of that agent still runs
-    // there, so skip rather than risk keeping the wrong conversation.
-    if (!t.sessionId && sameAgentStillIn(list, t.agent, t.cwd)) continue
+    // Without an exact session id (Codex), the conversation is found by its
+    // directory once the session ends. That is only safe if no other session
+    // of the same agent was ever in that directory with it: seen together in
+    // any scan, still running, or ending in this same scan. Otherwise the
+    // offer for one session could resume and keep another, so none is made.
+    if (!t.sessionId && (t.shared || hasCompanion(list, t.agent, t.cwd, pid) || hasCompanion(gone, t.agent, t.cwd, pid))) continue
     ended.push({ agent: t.agent, cwd: t.cwd, startedAt: t.startedAt, minutes: minutes, sessionId: t.sessionId || "" })
   }
   return { tracked: next, ended: ended }

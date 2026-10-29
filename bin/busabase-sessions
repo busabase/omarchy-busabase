@@ -10,8 +10,9 @@
 #       Only processes attached to a terminal count: background runs (including
 #       the ones this plugin starts) and app-server daemons are ignored.
 #   busabase-sessions resolve <agent> <cwd> <startedAt>
-#       Print the id of the session that agent wrote in <cwd> since <startedAt>
-#       (epoch seconds), newest first; nothing if none.
+#       Print the id of the one session that agent wrote in <cwd> since
+#       <startedAt> (epoch seconds). Nothing if there is none, or more than one:
+#       an ambiguous match is declined, never guessed.
 #
 # Reads only /proc and the agents' own session files (names, timestamps, and
 # Codex's first metadata line). Never reads conversation content.
@@ -56,17 +57,37 @@ live() {
   printf ']\n'
 }
 
+# Print the single candidate id on stdin, or fail if there are none or several.
+only_one() {
+  local id found=""
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    [[ -z "$found" ]] || return 1
+    found="$id"
+  done
+  [[ -n "$found" ]] && echo "$found"
+}
+
 resolve_codex() {
-  local cwd="$1" since="$2" file id meta_cwd
-  # Newest first; only files touched since the session started.
+  local cwd="$1" since="$2"
+  # Every top-level terminal session in <cwd> touched since the session
+  # started. Subagent threads, headless `codex exec` runs and app-server
+  # clients (editors, agent managers) write their own files in the same
+  # directory; none of them is the terminal conversation that ended. A
+  # terminal session records originator "codex-tui" (source "cli" or "vscode",
+  # depending on the version); source "cli" alone also counts.
+  local file id meta
   while IFS= read -r file; do
-    meta_cwd=$(head -n 1 "$file" 2>/dev/null | head -c 65536 | jq -r '.payload.cwd // empty' 2>/dev/null)
-    [[ "$meta_cwd" == "$cwd" ]] || continue
+    meta=$(head -n 1 "$file" 2>/dev/null | head -c 65536 | jq -r --arg cwd "$cwd" '
+      select(.payload.cwd == $cwd
+             and (.payload.source | type) == "string" and .payload.source != "exec"
+             and (.payload.parent_thread_id // "") == ""
+             and (.payload.originator == "codex-tui" or .payload.source == "cli"))
+      | .payload.id // empty' 2>/dev/null)
     id=$(basename "$file" .jsonl)
     id=${id: -36}
-    [[ "$id" =~ ^[0-9a-f-]{36}$ ]] && { echo "$id"; return 0; }
-  done < <(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt "@$since" -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-)
-  return 1
+    [[ "$id" =~ ^[0-9a-f-]{36}$ && "$id" == "$meta" ]] && echo "$id"
+  done < <(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt "@$since" 2>/dev/null) | only_one
 }
 
 resolve_claude() {
@@ -76,9 +97,8 @@ resolve_claude() {
   [[ -d "$dir" ]] || return 1
   while IFS= read -r file; do
     id=$(basename "$file" .jsonl)
-    [[ "$id" =~ ^[0-9a-f-]{36}$ ]] && { echo "$id"; return 0; }
-  done < <(find "$dir" -maxdepth 1 -name '*.jsonl' -newermt "@$since" -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-)
-  return 1
+    [[ "$id" =~ ^[0-9a-f-]{36}$ ]] && echo "$id"
+  done < <(find "$dir" -maxdepth 1 -name '*.jsonl' -newermt "@$since" 2>/dev/null) | only_one
 }
 
 case "${1:-}" in
