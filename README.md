@@ -67,7 +67,11 @@ Busabase."* When it lands, the bar flashes `+1`, and the panel lists it:
 
 **Keep what you selected.** Highlight any text (or copy it) and press your key:
 your coding agent reads it and files it in the right place in Busabase, in the
-background. A toast says *Keeping it*, then where it went. Bind it in
+background. A toast says *Keeping it*, then where it went. If nothing in your
+workspace fits (a brand-new workspace, say), it goes into a Base called *Inbox*,
+which the agent creates once with just a Title and a Note field; that is the only
+structure an unattended run ever adds. Something that looks like a password, key
+or token is not saved. Bind it in
 `~/.config/hypr/bindings.lua` (Super + Alt + B is free on a stock Omarchy):
 
 ```lua
@@ -123,7 +127,11 @@ Plugins run unsandboxed as your user, so here is the full list.
 - **Keeping a selection** reads the primary selection or clipboard once (text
   only, capped at 64 KB) into a private file (0600 in a 0700 directory under
   `$XDG_RUNTIME_DIR`), gives your agent only that file's path, and deletes it
-  when the agent is done. Captured text never appears on a command line.
+  when the agent is done. Captured text never appears on a command line. The
+  clipboard may hold something you just copied from a password manager, so the
+  agent is told not to save anything that looks like a secret. It still reads
+  the text to decide, so copy something else before pressing the key if your
+  clipboard holds a password.
 - **Offering to keep sessions** (only when switched on) reads `/proc` every 15
   seconds to see which interactive `claude` / `codex` processes are running and
   in which directory, and the agents' session file names and timestamps (plus
